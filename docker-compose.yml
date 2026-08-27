@@ -1,0 +1,62 @@
+name: ${COMPOSE_PROJECT_NAME:-wechat-bot-dev}
+
+services:
+  backend:
+    build:
+      context: ./backend
+    env_file:
+      - .env
+    volumes:
+      - bot_data:/app/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ./nginx
+    depends_on:
+      backend:
+        condition: service_healthy
+    expose:
+      - "8080"
+    ports:
+      - "${WECHAT_BOT_HOST_PORT:-8060}:8080"
+    volumes:
+      - ./nginx/static/WW_verify_wVpUiYfAUwoEd9II.txt:/usr/share/nginx/html/WW_verify_wVpUiYfAUwoEd9II.txt:ro
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 2s
+    networks:
+      default:
+      gateway:
+        aliases:
+          - ${WECHAT_BOT_GATEWAY_ALIAS:-wc}
+    restart: unless-stopped
+
+networks:
+  default:
+    name: ${COMPOSE_PROJECT_NAME:-wechat-bot}_default
+  gateway:
+    external: true
+    name: gateway
+
+volumes:
+  bot_data:
