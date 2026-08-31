@@ -6,3 +6,7 @@ ref
 *.db
 *.db-shm
 *.db-wal
+.vscode
+
+# opt
+meeting_log
