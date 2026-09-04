@@ -38,6 +38,7 @@ class Settings:
     callback_token: str
     encoding_aes_key: str
     open_kfid: str
+    public_base_url: str
     database_path: Path
     llm: LLMConfig
 
@@ -49,6 +50,10 @@ class Settings:
                 raise ValueError(f"missing required configuration: {key}")
             return value
 
+        public_base_url = required("PUBLIC_BASE_URL").rstrip("/")
+        if not public_base_url.startswith("https://"):
+            raise ValueError("PUBLIC_BASE_URL must use HTTPS")
+
         return cls(
             corp_id=required("CorpID"),
             app_agent_id=required("APP_AGENT_ID"),
@@ -56,6 +61,7 @@ class Settings:
             callback_token=values.get("WECHAT_KF_CALLBACK_TOKEN", "").strip(),
             encoding_aes_key=values.get("WECHAT_KF_ENCODING_AES_KEY", "").strip(),
             open_kfid=values.get("WECHAT_KF_OPEN_KFID", "").strip(),
+            public_base_url=public_base_url,
             database_path=Path(
                 values.get("DATABASE_PATH", "data/wechat_bot.db").strip()
                 or "data/wechat_bot.db"

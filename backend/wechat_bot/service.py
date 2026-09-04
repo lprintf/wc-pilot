@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
 
+from wechat_bot.auth import AuthManager, LoginTicketRateLimited
 from wechat_bot.callback import CustomerServiceEvent
 from wechat_bot.llm import LLMError, OpenAICompatibleLLM
 from wechat_bot.store import MessageStore
@@ -14,6 +16,14 @@ from wechat_bot.wecom import WeComClient
 
 LOGGER = logging.getLogger(__name__)
 FALLBACK_REPLY = "抱歉，智能客服暂时无法回答，请稍后再试。"
+PROFILE_CACHE_SECONDS = 24 * 60 * 60
+CUSTOMER_BATCH_SIZE = 100
+PROFILE_COMMANDS = frozenset({"我的信息", "我的消息", "个人中心", "查看记录"})
+LOGIN_LINK_HISTORY_REPLY = "已发送一次性个人中心登录链接（链接已隐藏）。"
+LOGIN_LINK_RATE_LIMIT_REPLY = (
+    "为了保护账号安全，登录链接每分钟只能生成一次。"
+    "请使用刚才收到的链接，或稍后再试。"
+)
 
 
 class CustomerServiceProcessor:
@@ -23,11 +33,13 @@ class CustomerServiceProcessor:
         llm: OpenAICompatibleLLM,
         store: MessageStore,
         configured_open_kfid: str = "",
+        auth: AuthManager | None = None,
     ) -> None:
         self._wecom = wecom
         self._llm = llm
         self._store = store
         self._configured_open_kfid = configured_open_kfid
+        self._auth = auth
         self._managed_open_kfid = ""
         self._locks: dict[str, asyncio.Lock] = {}
 
@@ -84,9 +96,14 @@ class CustomerServiceProcessor:
             messages = sorted(
                 result.messages, key=lambda item: int(item.get("send_time", 0))
             )
+            customer_user_ids = await self._prepare_customer_profiles(
+                event.open_kfid, messages
+            )
             replied = 0
             for message in messages:
-                if await self._process_message(event.open_kfid, message):
+                if await self._process_message(
+                    event.open_kfid, message, customer_user_ids
+                ):
                     replied += 1
             self._store.set_cursor(event.open_kfid, result.next_cursor)
             LOGGER.info(
@@ -96,8 +113,82 @@ class CustomerServiceProcessor:
                 result.pages,
             )
 
+    async def _prepare_customer_profiles(
+        self, open_kfid: str, messages: list[dict[str, Any]]
+    ) -> dict[str, int]:
+        customer_user_ids: dict[str, int] = {}
+        for message in messages:
+            if int(message.get("origin", 0)) != 3:
+                continue
+            external_userid = str(message.get("external_userid", "")).strip()
+            if not external_userid:
+                continue
+            user_id = self._store.get_or_create_customer(
+                open_kfid,
+                external_userid,
+                seen_at=int(message.get("send_time", 0)),
+            )
+            customer_user_ids[external_userid] = user_id
+
+        stale_profiles = [
+            (external_userid, user_id)
+            for external_userid, user_id in customer_user_ids.items()
+            if self._store.profile_needs_refresh(
+                user_id, max_age_seconds=PROFILE_CACHE_SECONDS
+            )
+        ]
+        for offset in range(0, len(stale_profiles), CUSTOMER_BATCH_SIZE):
+            batch = stale_profiles[offset : offset + CUSTOMER_BATCH_SIZE]
+            batch_user_ids = dict(batch)
+            try:
+                customers = await self._wecom.batch_get_customers(
+                    list(batch_user_ids)
+                )
+                fetched_at = int(time.time())
+                returned_user_ids: set[int] = set()
+                for customer in customers:
+                    user_id = batch_user_ids.get(customer.external_userid)
+                    if user_id is None:
+                        continue
+                    self._store.update_customer_profile(
+                        user_id=user_id,
+                        external_userid=customer.external_userid,
+                        nickname=customer.nickname,
+                        avatar_url=customer.avatar_url,
+                        gender=customer.gender,
+                        unionid=customer.unionid,
+                        scene=customer.scene,
+                        scene_param=customer.scene_param,
+                        fetched_at=fetched_at,
+                    )
+                    returned_user_ids.add(user_id)
+                self._store.mark_profiles_fetched(
+                    [
+                        user_id
+                        for user_id in batch_user_ids.values()
+                        if user_id not in returned_user_ids
+                    ],
+                    fetched_at=fetched_at,
+                )
+                LOGGER.info(
+                    "refreshed customer profiles: requested=%d returned=%d",
+                    len(batch),
+                    len(returned_user_ids),
+                )
+            except (RuntimeError, ValueError) as exc:
+                LOGGER.warning(
+                    "customer profile refresh failed; continuing message processing: "
+                    "requested=%d error=%s",
+                    len(batch),
+                    type(exc).__name__,
+                )
+        return customer_user_ids
+
     async def _process_message(
-        self, open_kfid: str, message: dict[str, Any]
+        self,
+        open_kfid: str,
+        message: dict[str, Any],
+        customer_user_ids: dict[str, int],
     ) -> bool:
         msgid = str(message.get("msgid", ""))
         if not msgid or self._store.is_processed(msgid):
@@ -110,9 +201,15 @@ class CustomerServiceProcessor:
         if not external_userid:
             LOGGER.warning("ignored customer message without external_userid")
             return False
+        user_id = customer_user_ids.get(external_userid)
+        if user_id is None:
+            user_id = self._store.get_or_create_customer(
+                open_kfid, external_userid, seen_at=send_time
+            )
         if str(message.get("msgtype", "")) != "text":
             self._store.mark_ignored(
                 msgid=msgid,
+                user_id=user_id,
                 open_kfid=open_kfid,
                 external_userid=external_userid,
                 send_time=send_time,
@@ -123,13 +220,45 @@ class CustomerServiceProcessor:
         if not content:
             self._store.mark_ignored(
                 msgid=msgid,
+                user_id=user_id,
                 open_kfid=open_kfid,
                 external_userid=external_userid,
                 send_time=send_time,
             )
             return False
 
-        history = self._store.history(external_userid)
+        if content in PROFILE_COMMANDS and self._auth is not None:
+            try:
+                ticket = self._auth.issue_login_ticket(user_id)
+            except LoginTicketRateLimited:
+                reply = LOGIN_LINK_RATE_LIMIT_REPLY
+                stored_reply = reply
+                ticket = None
+            else:
+                reply = (
+                    "请在 10 分钟内打开以下链接进入个人中心：\n"
+                    f"{ticket.url}\n"
+                    "链接只能使用一次，请勿转发。"
+                )
+                stored_reply = LOGIN_LINK_HISTORY_REPLY
+            try:
+                await self._wecom.send_text(open_kfid, external_userid, reply)
+            except Exception:
+                if ticket is not None:
+                    self._auth.cancel_login_ticket(ticket.token)
+                raise
+            self._store.mark_sent(
+                msgid=msgid,
+                user_id=user_id,
+                open_kfid=open_kfid,
+                external_userid=external_userid,
+                send_time=send_time,
+                customer_content=content,
+                reply_content=stored_reply,
+            )
+            return True
+
+        history = self._store.history(user_id)
         try:
             reply = await self._llm.answer(content, history)
         except (LLMError, ValueError):
@@ -138,6 +267,7 @@ class CustomerServiceProcessor:
         await self._wecom.send_text(open_kfid, external_userid, reply)
         self._store.mark_sent(
             msgid=msgid,
+            user_id=user_id,
             open_kfid=open_kfid,
             external_userid=external_userid,
             send_time=send_time,

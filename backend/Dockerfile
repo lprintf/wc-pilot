@@ -17,4 +17,4 @@ RUN mkdir -p /app/data && chown -R nobody:nogroup /app
 
 USER nobody
 
-CMD ["/app/.venv/bin/uvicorn", "wechat_bot.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/.venv/bin/uvicorn", "wechat_bot.app:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

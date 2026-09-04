@@ -2,6 +2,50 @@
 
 The default mode is read-only: acquire an access token, list customer-service
 accounts, and pull recent messages. Add --send-test to send a reply explicitly.
+
+Required configuration (read from the repository-root .env by default):
+
+    CorpID=wwxxxxxxxxxxxxxxxx
+    APP_AGENT_ID=1000002
+    APP_AGENT_SECRET=xxxxxxxxxxxxxxxx
+
+If the application can see more than one customer-service account, also set:
+
+    WECHAT_KF_OPEN_KFID=wkxxxxxxxxxxxxxxxx
+
+Examples (PowerShell, run from the repository root):
+
+    # 1. Read-only smoke test using the default .env file.
+    uv run --project backend python backend/scripts/test_wechat_kf_api.py
+
+    # 2. Select a customer-service account on the command line.
+    uv run --project backend python backend/scripts/test_wechat_kf_api.py \
+        --open-kfid "wkxxxxxxxxxxxxxxxx"
+
+    # 3. Use the temporary token received in a kf_msg_or_event callback.
+    #    This is not WECHAT_KF_CALLBACK_TOKEN from the callback configuration.
+    uv run --project backend python backend/scripts/test_wechat_kf_api.py \
+        --sync-token "callback-temporary-token"
+
+    # 4. Continue pulling from a cursor returned by an earlier run.
+    uv run --project backend python backend/scripts/test_wechat_kf_api.py
+        --cursor "previous-next-cursor" --max-pages 50
+
+    # 5. Explicitly reply to the most recent customer message. This sends a
+    #    real message, so first run the read-only test and verify the account.
+    uv run --project backend python backend/scripts/test_wechat_kf_api.py \
+        --send-test --content "这是一条接口联调测试消息"
+
+    # 6. Load configuration from another dotenv file.
+    uv run --project backend python backend/scripts/test_wechat_kf_api.py \
+        --env-file ".env.test"
+
+When already in the backend directory, the shorter equivalent is:
+
+    uv run python scripts/test_wechat_kf_api.py
+
+Run with --help to see all options. Environment variables override values in
+the dotenv file. The script masks identifiers in its normal output.
 """
 
 from __future__ import annotations
