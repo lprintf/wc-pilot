@@ -41,6 +41,8 @@ class Settings:
     public_base_url: str
     database_path: Path
     llm: LLMConfig
+    admin_username: str = ""
+    admin_password: str = ""
 
     @classmethod
     def from_mapping(cls, values: Mapping[str, str]) -> Settings:
@@ -67,6 +69,8 @@ class Settings:
                 or "data/wechat_bot.db"
             ),
             llm=LLMConfig.from_mapping(values),
+            admin_username=values.get("ADMIN_USERNAME", "").strip(),
+            admin_password=values.get("ADMIN_PASSWORD", ""),
         )
 
     @classmethod
@@ -82,3 +86,7 @@ class Settings:
         elif len(self.encoding_aes_key) != 43:
             missing.append("WECHAT_KF_ENCODING_AES_KEY must be 43 characters")
         return missing
+
+    @property
+    def admin_configured(self) -> bool:
+        return bool(self.admin_username and self.admin_password)

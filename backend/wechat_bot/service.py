@@ -242,7 +242,7 @@ class CustomerServiceProcessor:
                 )
                 stored_reply = LOGIN_LINK_HISTORY_REPLY
             try:
-                await self._wecom.send_text(open_kfid, external_userid, reply)
+                reply_message_id = await self._wecom.send_text(open_kfid, external_userid, reply)
             except Exception:
                 if ticket is not None:
                     self._auth.cancel_login_ticket(ticket.token)
@@ -255,6 +255,7 @@ class CustomerServiceProcessor:
                 send_time=send_time,
                 customer_content=content,
                 reply_content=stored_reply,
+                reply_source_message_id=reply_message_id,
             )
             return True
 
@@ -264,7 +265,7 @@ class CustomerServiceProcessor:
         except (LLMError, ValueError):
             LOGGER.exception("LLM request failed; using fallback reply")
             reply = FALLBACK_REPLY
-        await self._wecom.send_text(open_kfid, external_userid, reply)
+        reply_message_id = await self._wecom.send_text(open_kfid, external_userid, reply)
         self._store.mark_sent(
             msgid=msgid,
             user_id=user_id,
@@ -273,5 +274,6 @@ class CustomerServiceProcessor:
             send_time=send_time,
             customer_content=content,
             reply_content=reply,
+            reply_source_message_id=reply_message_id,
         )
         return True

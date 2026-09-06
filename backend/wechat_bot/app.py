@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import logging
 from typing import AsyncIterator
 
-from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi import Body, FastAPI, HTTPException, Query, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 
 from wechat_bot.auth import AuthManager, InvalidLoginTicket, SESSION_COOKIE_NAME
@@ -22,6 +25,7 @@ from wechat_bot.crypto import CallbackCryptoError, WeComCallbackCrypto
 from wechat_bot.llm import OpenAICompatibleLLM
 from wechat_bot.service import CustomerServiceProcessor
 from wechat_bot.store import MessageStore
+from wechat_bot.admin_web import render_admin_console
 from wechat_bot.web import render_authentication_required, render_user_center
 from wechat_bot.wecom import WeComClient
 
@@ -102,6 +106,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="WeChat Customer Service LLM PoC", lifespan=lifespan)
 
+    @app.middleware("http")
+    async def prevent_admin_caching(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path == "/admin" or request.url.path.startswith("/api/admin/"):
+            response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request: Request, exc: RequestValidationError) -> Response:
+        if request.url.path.startswith("/api/admin/"):
+            return admin_error("invalid_request", "请求参数无效", 422)
+        return JSONResponse({"detail": exc.errors()}, status_code=422)
+
     def authenticated_user_id(request: Request) -> int | None:
         runtime: Runtime = request.app.state.runtime
         session_token = request.cookies.get(SESSION_COOKIE_NAME, "")
@@ -120,6 +137,47 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'"
         )
         return response
+
+    def admin_error(code: str, message: str, status_code: int, *, retryable: bool = False) -> JSONResponse:
+        response = JSONResponse({"error": {"code": code, "message": message, "retryable": retryable}}, status_code=status_code)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    def admin_authenticated(request: Request) -> bool:
+        runtime: Runtime = request.app.state.runtime
+        settings = getattr(runtime, "settings", None)
+        if settings is None or not getattr(settings, "admin_configured", False):
+            return False
+        header = request.headers.get("authorization", "")
+        if not header.lower().startswith("basic "):
+            return False
+        try:
+            decoded = base64.b64decode(header[6:].strip(), validate=True).decode("utf-8")
+            username, password = decoded.split(":", 1)
+        except (ValueError, UnicodeDecodeError, binascii.Error):
+            return False
+        import hmac
+        return hmac.compare_digest(username, settings.admin_username) and hmac.compare_digest(password, settings.admin_password)
+
+    def require_admin(request: Request) -> Response | None:
+        runtime: Runtime = request.app.state.runtime
+        settings = getattr(runtime, "settings", None)
+        if settings is None or not getattr(settings, "admin_configured", False):
+            return admin_error("admin_not_configured", "客服后台尚未配置管理员账号", 503)
+        if not admin_authenticated(request):
+            response = admin_error("authentication_required", "需要客服管理员认证", 401)
+            response.headers["WWW-Authenticate"] = 'Basic realm="customer-service-admin", charset="UTF-8"'
+            return response
+        return None
+
+    def admin_message_json(message: object) -> dict[str, object]:
+        return {
+            "id": message.id, "sender_type": message.sender_type,
+            "content": message.content, "occurred_at": timestamp_json(message.occurred_at),
+            "message_type": message.message_type, "source": message.source,
+            "send_status": message.send_status, "error_message": message.error_message,
+            "client_request_id": message.client_request_id,
+        }
 
     @app.get("/health/live")
     async def health_live() -> dict[str, str]:
@@ -251,6 +309,107 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         response.headers["Cache-Control"] = "no-store"
         return response
+
+    @app.get("/admin", response_class=HTMLResponse)
+    async def admin_console(request: Request) -> Response:
+        denied = require_admin(request)
+        if denied is not None:
+            return denied
+        response = secure_html(render_admin_console())
+        response.headers["Content-Security-Policy"] = "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"
+        return response
+
+    @app.get("/api/admin/users")
+    async def admin_users(request: Request, q: str = Query(""), page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=100), sort: str = Query("recent")) -> Response:
+        denied = require_admin(request)
+        if denied is not None:
+            return denied
+        runtime: Runtime = request.app.state.runtime
+        if sort not in {"recent", "oldest", "unread"}:
+            return admin_error("invalid_sort", "不支持的排序方式", 400)
+        if not runtime.processor.managed_open_kfid:
+            return admin_error("service_not_ready", "客服账号尚未就绪", 503, retryable=True)
+        users, total = runtime.store.list_admin_users(runtime.processor.managed_open_kfid, search=q, page=page, page_size=page_size, sort=sort)
+        return JSONResponse({"users": [{"id": u.id, "nickname": u.nickname, "avatar_url": u.avatar_url if u.avatar_url.startswith("https://") else "", "last_message_preview": u.last_message_preview, "last_active_at": timestamp_json(u.last_active_at), "unread_count": u.unread_count} for u in users], "page": page, "page_size": page_size, "total": total})
+
+    @app.get("/api/admin/users/{user_id}")
+    async def admin_user(request: Request, user_id: int) -> Response:
+        denied = require_admin(request)
+        if denied is not None:
+            return denied
+        runtime: Runtime = request.app.state.runtime
+        profile = runtime.store.get_admin_user(user_id, runtime.processor.managed_open_kfid)
+        if profile is None:
+            return admin_error("user_not_found", "用户不存在", 404)
+        return JSONResponse({"user": {"id": profile.user_id, "nickname": profile.nickname, "avatar_url": profile.avatar_url if profile.avatar_url.startswith("https://") else "", "gender": profile.gender, "first_seen_at": timestamp_json(profile.first_seen_at), "last_seen_at": timestamp_json(profile.last_seen_at)}})
+
+    @app.get("/api/admin/users/{user_id}/conversation")
+    async def admin_conversation(request: Request, user_id: int, before_id: int | None = Query(None, ge=1), limit: int = Query(50, ge=1, le=100)) -> Response:
+        denied = require_admin(request)
+        if denied is not None:
+            return denied
+        runtime: Runtime = request.app.state.runtime
+        if runtime.store.get_admin_user(user_id, runtime.processor.managed_open_kfid) is None:
+            return admin_error("user_not_found", "用户不存在", 404)
+        messages, has_more = runtime.store.admin_conversation_messages(user_id, runtime.processor.managed_open_kfid, before_id=before_id, limit=limit)
+        runtime.store.mark_admin_user_read(user_id, messages[-1].id if messages else before_id)
+        return JSONResponse({"messages": [admin_message_json(m) for m in messages], "has_more": has_more, "next_before_id": messages[0].id if has_more and messages else None})
+
+    @app.post("/api/admin/users/{user_id}/messages")
+    async def admin_send_message(request: Request, user_id: int, body: dict[str, object] | None = Body(default=None)) -> Response:
+        denied = require_admin(request)
+        if denied is not None:
+            return denied
+        if request.headers.get("x-requested-with", "") != "XMLHttpRequest":
+            return admin_error("csrf_required", "发送消息需要 CSRF 请求头", 403)
+        runtime: Runtime = request.app.state.runtime
+        open_kfid = runtime.processor.managed_open_kfid
+        if not open_kfid:
+            return admin_error("service_not_ready", "客服账号尚未就绪", 503, retryable=True)
+        payload = body or {}
+        retry_id = payload.get("retry_message_id")
+        try:
+            retry_message_id = int(retry_id) if retry_id is not None else None
+        except (TypeError, ValueError):
+            return admin_error("invalid_request", "重试消息编号无效", 400)
+        content = str(payload.get("content", "")).strip()
+        if retry_message_id is None and not content:
+            return admin_error("empty_message", "消息内容不能为空", 400)
+        if len(content) > 2000:
+            return admin_error("message_too_long", "消息长度不能超过 2000 个字符", 400)
+        request_id = str(payload.get("request_id", "")).strip()
+        if not request_id or len(request_id) > 100:
+            return admin_error("invalid_request", "缺少有效 request_id", 400)
+        if retry_message_id is None:
+            existing = runtime.store.get_admin_message_by_request(user_id, request_id)
+            if existing is not None:
+                if existing.send_status == "failed":
+                    return admin_error("retry_required", "该消息发送失败，请明确点击重试", 409, retryable=True)
+                return JSONResponse({"message": admin_message_json(existing), "deduplicated": True}, status_code=202 if existing.send_status == "pending" else 200)
+        try:
+            message, should_send = runtime.store.create_admin_message(user_id=user_id, open_kfid=open_kfid, content=content, operator_id=runtime.settings.admin_username, request_id=request_id, retry_message_id=retry_message_id)
+        except LookupError:
+            return admin_error("user_not_found", "用户不存在", 404)
+        except ValueError as exc:
+            return admin_error("invalid_request", str(exc), 409)
+        if message.send_status == "sent":
+            return JSONResponse({"message": admin_message_json(message), "deduplicated": True})
+        if not should_send:
+            return JSONResponse({"message": admin_message_json(message), "deduplicated": True}, status_code=202)
+        external_userid = runtime.store.get_customer_external_userid(user_id, open_kfid)
+        if not external_userid:
+            runtime.store.complete_admin_message(message.id, status="failed", error_message="user_unavailable")
+            return admin_error("user_unavailable", "用户当前不可发送", 409, retryable=True)
+        try:
+            source_message_id = await runtime.wecom.send_text(open_kfid, external_userid, message.content)
+        except Exception as exc:
+            LOGGER.warning("admin message delivery failed: message_id=%s error=%s", message.id, type(exc).__name__)
+            runtime.store.complete_admin_message(message.id, status="failed", error_message="delivery_failed")
+            failed = runtime.store.get_admin_message_by_request(user_id, message.client_request_id or request_id)
+            return JSONResponse({"error": {"code": "delivery_failed", "message": "企业微信发送失败，可点击重试", "retryable": True}, "message": admin_message_json(failed or message)}, status_code=502)
+        runtime.store.complete_admin_message(message.id, status="sent", source_message_id=source_message_id or None)
+        sent = runtime.store.get_admin_message_by_request(user_id, message.client_request_id or request_id) or message
+        return JSONResponse({"message": admin_message_json(sent)})
 
     @app.get("/wecom/kf/callback", response_class=PlainTextResponse)
     async def verify_callback(

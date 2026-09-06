@@ -41,6 +41,36 @@ class ConversationMessage:
     sender_type: str
     content: str
     occurred_at: int
+    id: int = 0
+    message_type: str = "text"
+    source: str = "wechat_kf"
+    send_status: str = "sent"
+    error_message: str | None = None
+    client_request_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AdminUserSummary:
+    id: int
+    nickname: str
+    avatar_url: str
+    last_message_preview: str
+    last_active_at: int
+    unread_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class AdminMessage:
+    id: int
+    user_id: int
+    sender_type: str
+    content: str
+    occurred_at: int
+    message_type: str
+    source: str
+    send_status: str
+    error_message: str | None
+    client_request_id: str | None
 
 
 class MessageStore:
@@ -152,6 +182,38 @@ class MessageStore:
 
                 CREATE INDEX IF NOT EXISTS idx_processed_customer_time
                 ON processed_message(external_userid, send_time DESC);
+
+                CREATE TABLE IF NOT EXISTS conversation_message (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    conversation_id INTEGER NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES app_user(id) ON DELETE CASCADE,
+                    sender_type TEXT NOT NULL CHECK (sender_type IN ('user', 'ai', 'human_agent', 'system')),
+                    message_type TEXT NOT NULL DEFAULT 'text',
+                    content TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    source_message_id TEXT,
+                    send_status TEXT NOT NULL CHECK (send_status IN ('pending', 'sent', 'failed')),
+                    error_message TEXT,
+                    operator_id TEXT,
+                    client_request_id TEXT UNIQUE,
+                    occurred_at INTEGER NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                );
+
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_message_source
+                ON conversation_message(source, source_message_id)
+                WHERE source_message_id IS NOT NULL;
+                CREATE INDEX IF NOT EXISTS idx_conversation_message_conversation
+                ON conversation_message(conversation_id, occurred_at, id);
+                CREATE INDEX IF NOT EXISTS idx_conversation_message_user
+                ON conversation_message(user_id, occurred_at DESC, id DESC);
+
+                CREATE TABLE IF NOT EXISTS admin_user_state (
+                    user_id INTEGER PRIMARY KEY REFERENCES app_user(id) ON DELETE CASCADE,
+                    last_read_message_id INTEGER NOT NULL DEFAULT 0,
+                    updated_at INTEGER NOT NULL
+                );
                 """
             )
             columns = {
@@ -183,6 +245,7 @@ class MessageStore:
                 """
             )
             self._backfill_conversations_locked()
+            self._backfill_conversation_messages_locked()
 
     def close(self) -> None:
         with self._lock:
@@ -296,6 +359,7 @@ class MessageStore:
                 """,
                 (conversation_id, user_id, open_kfid),
             )
+            self._backfill_conversation_messages_locked()
         return user_id
 
     def profile_needs_refresh(
@@ -549,38 +613,31 @@ class MessageStore:
             summaries: list[ConversationSummary] = []
             for conversation in conversation_rows:
                 message_row = self._connection.execute(
-                    """
-                    SELECT customer_content, reply_content, send_time, created_at
-                    FROM processed_message
-                    WHERE conversation_id = ? AND status = 'sent'
-                    ORDER BY send_time DESC, created_at DESC
-                    LIMIT 1
-                    """,
+                    """SELECT content, occurred_at, created_at
+                       FROM conversation_message
+                       WHERE conversation_id = ? AND sender_type = 'user' AND send_status = 'sent'
+                       ORDER BY occurred_at DESC, id DESC LIMIT 1""",
                     (int(conversation["id"]),),
                 ).fetchone()
                 count_row = self._connection.execute(
-                    """
-                    SELECT COUNT(1) AS turn_count
-                    FROM processed_message
-                    WHERE conversation_id = ? AND status = 'sent'
-                    """,
+                    """SELECT COUNT(1) AS message_count
+                       FROM conversation_message
+                       WHERE conversation_id = ? AND send_status = 'sent'""",
                     (int(conversation["id"]),),
                 ).fetchone()
                 if message_row is None or count_row is None:
                     continue
-                preview = str(message_row["customer_content"]).strip()
-                if not preview:
-                    preview = str(message_row["reply_content"]).strip()
+                preview = str(message_row["content"]).strip()
                 summaries.append(
                     ConversationSummary(
                         id=int(conversation["id"]),
                         source=str(conversation["source"]),
                         started_at=int(conversation["created_at"]),
                         last_message_at=max(
-                            int(message_row["send_time"]),
+                            int(message_row["occurred_at"]),
                             int(message_row["created_at"]),
                         ),
-                        message_count=int(count_row["turn_count"]) * 2,
+                        message_count=int(count_row["message_count"]),
                         preview=preview,
                     )
                 )
@@ -603,32 +660,27 @@ class MessageStore:
             if conversation is None:
                 return None
             rows = self._connection.execute(
-                """
-                SELECT customer_content, reply_content, send_time, created_at
-                FROM processed_message
-                WHERE conversation_id = ? AND status = 'sent'
-                ORDER BY send_time DESC, created_at DESC
-                LIMIT ?
-                """,
+                """SELECT id, sender_type, content, occurred_at, message_type,
+                          source, send_status, error_message, client_request_id
+                   FROM conversation_message
+                   WHERE conversation_id = ? AND send_status = 'sent'
+                   ORDER BY occurred_at DESC, id DESC LIMIT ?""",
                 (conversation_id, turns),
             ).fetchall()
 
         messages: list[ConversationMessage] = []
         for row in reversed(rows):
-            customer_content = str(row["customer_content"]).strip()
-            reply_content = str(row["reply_content"]).strip()
-            if customer_content:
-                messages.append(
-                    ConversationMessage(
-                        "customer", customer_content, int(row["send_time"])
-                    )
-                )
-            if reply_content:
-                messages.append(
-                    ConversationMessage(
-                        "assistant", reply_content, int(row["created_at"])
-                    )
-                )
+            messages.append(ConversationMessage(
+                sender_type={"user": "customer", "ai": "assistant"}.get(str(row["sender_type"]), str(row["sender_type"])),
+                content=str(row["content"]),
+                occurred_at=int(row["occurred_at"]),
+                id=int(row["id"]),
+                message_type=str(row["message_type"]),
+                source=str(row["source"]),
+                send_status=str(row["send_status"]),
+                error_message=(str(row["error_message"]) if row["error_message"] is not None else None),
+                client_request_id=(str(row["client_request_id"]) if row["client_request_id"] is not None else None),
+            ))
         return messages
 
     def mark_sent(
@@ -641,6 +693,7 @@ class MessageStore:
         send_time: int,
         customer_content: str,
         reply_content: str,
+        reply_source_message_id: str | None = None,
     ) -> None:
         self._record(
             msgid,
@@ -651,6 +704,7 @@ class MessageStore:
             customer_content,
             reply_content,
             "sent",
+            reply_source_message_id,
         )
 
     def mark_ignored(
@@ -677,18 +731,18 @@ class MessageStore:
         with self._lock:
             rows = self._connection.execute(
                 """
-                SELECT customer_content, reply_content
-                FROM processed_message
-                WHERE user_id = ? AND status = 'sent'
-                ORDER BY send_time DESC
+                SELECT sender_type, content
+                FROM conversation_message
+                WHERE user_id = ? AND send_status = 'sent'
+                ORDER BY occurred_at DESC, id DESC
                 LIMIT ?
                 """,
-                (user_id, turns),
+                (user_id, turns * 2),
             ).fetchall()
         history: list[ChatMessage] = []
         for row in reversed(rows):
-            history.append(ChatMessage("user", str(row["customer_content"])))
-            history.append(ChatMessage("assistant", str(row["reply_content"])))
+            role = "user" if str(row["sender_type"]) == "user" else "assistant"
+            history.append(ChatMessage(role, str(row["content"])))
         return history
 
     def _record(
@@ -701,6 +755,7 @@ class MessageStore:
         customer_content: str,
         reply_content: str,
         status: str,
+        reply_source_message_id: str | None = None,
     ) -> None:
         with self._lock, self._connection:
             recorded_at = int(time.time())
@@ -738,6 +793,23 @@ class MessageStore:
                 """,
                 (recorded_at, conversation_id),
             )
+            if status == "sent":
+                self._connection.execute(
+                    """INSERT OR IGNORE INTO conversation_message(
+                       conversation_id, user_id, sender_type, message_type, content,
+                       source, source_message_id, send_status, occurred_at, created_at, updated_at
+                    ) VALUES (?, ?, 'user', 'text', ?, 'wechat_kf', ?, 'sent', ?, ?, ?)""",
+                    (conversation_id, user_id, customer_content, msgid,
+                     send_time if send_time > 0 else recorded_at, recorded_at, recorded_at),
+                )
+                self._connection.execute(
+                    """INSERT OR IGNORE INTO conversation_message(
+                       conversation_id, user_id, sender_type, message_type, content,
+                       source, source_message_id, send_status, occurred_at, created_at, updated_at
+                    ) VALUES (?, ?, 'ai', 'text', ?, 'llm', ?, 'sent', ?, ?, ?)""",
+                    (conversation_id, user_id, reply_content, reply_source_message_id or f"legacy-reply:{msgid}",
+                     recorded_at, recorded_at, recorded_at),
+                )
 
     def _get_or_create_conversation_locked(
         self, *, user_id: int, open_kfid: str, occurred_at: int
@@ -801,3 +873,154 @@ class MessageStore:
                 """,
                 (conversation_id, user_id, open_kfid),
             )
+
+    def _backfill_conversation_messages_locked(self) -> None:
+        rows = self._connection.execute(
+            """SELECT msgid, user_id, conversation_id, customer_content,
+                      reply_content, send_time, created_at
+               FROM processed_message
+               WHERE status = 'sent' AND user_id IS NOT NULL
+                 AND conversation_id IS NOT NULL"""
+        ).fetchall()
+        for row in rows:
+            msgid = str(row["msgid"])
+            conversation_id = int(row["conversation_id"])
+            user_id = int(row["user_id"])
+            send_time = int(row["send_time"])
+            created_at = int(row["created_at"])
+            self._connection.execute(
+                """INSERT OR IGNORE INTO conversation_message(
+                   conversation_id, user_id, sender_type, message_type, content,
+                   source, source_message_id, send_status, occurred_at, created_at, updated_at
+                ) VALUES (?, ?, 'user', 'text', ?, 'wechat_kf', ?, 'sent', ?, ?, ?)""",
+                (conversation_id, user_id, str(row["customer_content"]), msgid,
+                 send_time, created_at, created_at),
+            )
+            self._connection.execute(
+                """INSERT OR IGNORE INTO conversation_message(
+                   conversation_id, user_id, sender_type, message_type, content,
+                   source, source_message_id, send_status, occurred_at, created_at, updated_at
+                ) VALUES (?, ?, 'ai', 'text', ?, 'llm', ?, 'sent', ?, ?, ?)""",
+                (conversation_id, user_id, str(row["reply_content"]), f"legacy-reply:{msgid}",
+                 created_at, created_at, created_at),
+            )
+
+    def list_admin_users(
+        self, open_kfid: str, *, search: str = "", page: int = 1,
+        page_size: int = 50, sort: str = "recent"
+    ) -> tuple[list[AdminUserSummary], int]:
+        page = max(page, 1)
+        page_size = min(max(page_size, 1), 100)
+        pattern = f"%{search.strip()}%"
+        order = "last_active_at DESC, u.id DESC" if sort != "oldest" else "last_active_at ASC, u.id ASC"
+        if sort == "unread":
+            order = "unread_count DESC, last_active_at DESC, u.id DESC"
+        with self._lock:
+            rows = self._connection.execute(
+                f"""SELECT u.id, p.nickname, p.avatar_url,
+                    COALESCE((SELECT cm.content FROM conversation_message cm
+                      WHERE cm.user_id=u.id AND cm.send_status='sent'
+                      ORDER BY cm.occurred_at DESC, cm.id DESC LIMIT 1), '') AS preview,
+                    COALESCE((SELECT MAX(cm.occurred_at) FROM conversation_message cm
+                      WHERE cm.user_id=u.id AND cm.send_status='sent'), p.last_seen_at) AS last_active_at,
+                    COALESCE((SELECT COUNT(1) FROM conversation_message cm
+                      WHERE cm.user_id=u.id AND cm.sender_type='user' AND cm.send_status='sent'
+                        AND cm.id > COALESCE((SELECT last_read_message_id FROM admin_user_state s WHERE s.user_id=u.id),0)),0) AS unread_count
+                    FROM app_user u JOIN customer_profile p ON p.user_id=u.id
+                    JOIN user_identity i ON i.user_id=u.id AND i.provider='wecom_kf' AND i.subject_id=?
+                    WHERE (?='' OR p.nickname LIKE ? OR CAST(u.id AS TEXT) LIKE ?)
+                    ORDER BY {order} LIMIT ? OFFSET ?""",
+                (open_kfid, search.strip(), pattern, pattern, page_size, (page - 1) * page_size),
+            ).fetchall()
+            total = int(self._connection.execute(
+                """SELECT COUNT(1) FROM app_user u JOIN customer_profile p ON p.user_id=u.id
+                   JOIN user_identity i ON i.user_id=u.id AND i.provider='wecom_kf' AND i.subject_id=?
+                   WHERE (?='' OR p.nickname LIKE ? OR CAST(u.id AS TEXT) LIKE ?)""",
+                (open_kfid, search.strip(), pattern, pattern),
+            ).fetchone()[0])
+        return [AdminUserSummary(int(r["id"]), str(r["nickname"]), str(r["avatar_url"]),
+                                 str(r["preview"]), int(r["last_active_at"]), int(r["unread_count"])) for r in rows], total
+
+    def get_admin_user(self, user_id: int, open_kfid: str) -> CustomerProfile | None:
+        with self._lock:
+            row = self._connection.execute(
+                """SELECT 1 FROM user_identity WHERE user_id=? AND provider='wecom_kf' AND subject_id=?""",
+                (user_id, open_kfid),
+            ).fetchone()
+        return self.get_customer_profile(user_id) if row else None
+
+    def get_customer_external_userid(self, user_id: int, open_kfid: str) -> str | None:
+        with self._lock:
+            row = self._connection.execute(
+                """SELECT external_id FROM user_identity
+                   WHERE user_id=? AND provider='wecom_kf' AND subject_id=?""",
+                (user_id, open_kfid),
+            ).fetchone()
+        return str(row["external_id"]) if row else None
+
+    def admin_conversation_messages(self, user_id: int, open_kfid: str, *, before_id: int | None = None, limit: int = 50) -> tuple[list[AdminMessage], bool]:
+        if self.get_admin_user(user_id, open_kfid) is None:
+            return [], False
+        limit = min(max(limit, 1), 100)
+        with self._lock:
+            params: list[object] = [user_id, limit + 1]
+            where = "user_id=? AND send_status IN ('pending','sent','failed')"
+            if before_id is not None:
+                where += " AND id < ?"
+                params = [user_id, before_id, limit + 1]
+            rows = self._connection.execute(
+                f"""SELECT id,user_id,sender_type,content,occurred_at,message_type,source,send_status,error_message,client_request_id
+                    FROM conversation_message WHERE {where} ORDER BY occurred_at DESC, id DESC LIMIT ?""", params
+            ).fetchall()
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+        rows.reverse()
+        return [AdminMessage(int(r["id"]), int(r["user_id"]), str(r["sender_type"]), str(r["content"]), int(r["occurred_at"]), str(r["message_type"]), str(r["source"]), str(r["send_status"]), str(r["error_message"]) if r["error_message"] is not None else None, str(r["client_request_id"]) if r["client_request_id"] is not None else None) for r in rows], has_more
+
+    def mark_admin_user_read(self, user_id: int, message_id: int | None = None) -> None:
+        with self._lock, self._connection:
+            if message_id is None:
+                row = self._connection.execute("SELECT COALESCE(MAX(id),0) FROM conversation_message WHERE user_id=?", (user_id,)).fetchone()
+                message_id = int(row[0]) if row else 0
+            self._connection.execute("""INSERT INTO admin_user_state(user_id,last_read_message_id,updated_at) VALUES (?,?,?)
+                ON CONFLICT(user_id) DO UPDATE SET last_read_message_id=MAX(admin_user_state.last_read_message_id,excluded.last_read_message_id),updated_at=excluded.updated_at""", (user_id, message_id, int(time.time())))
+
+    def get_admin_message_by_request(self, user_id: int, request_id: str) -> AdminMessage | None:
+        with self._lock:
+            row = self._connection.execute("""SELECT id,user_id,sender_type,content,occurred_at,message_type,source,send_status,error_message,client_request_id FROM conversation_message WHERE user_id=? AND client_request_id=?""", (user_id, request_id)).fetchone()
+        return self._admin_message_from_row(row) if row else None
+
+    def create_admin_message(self, *, user_id: int, open_kfid: str, content: str, operator_id: str, request_id: str, retry_message_id: int | None = None) -> tuple[AdminMessage, bool]:
+        now = int(time.time())
+        with self._lock, self._connection:
+            profile = self._connection.execute("""SELECT external_userid FROM customer_profile p JOIN user_identity i ON i.user_id=p.user_id WHERE p.user_id=? AND i.provider='wecom_kf' AND i.subject_id=?""", (user_id, open_kfid)).fetchone()
+            if profile is None:
+                raise LookupError("user not found")
+            if retry_message_id is not None:
+                row = self._connection.execute("SELECT * FROM conversation_message WHERE id=? AND user_id=? AND sender_type='human_agent'", (retry_message_id,user_id)).fetchone()
+                if row is None or str(row["send_status"]) != "failed":
+                    raise ValueError("message cannot be retried")
+                self._connection.execute("UPDATE conversation_message SET send_status='pending',error_message=NULL,updated_at=? WHERE id=?", (now,retry_message_id))
+                row = self._connection.execute("SELECT * FROM conversation_message WHERE id=?", (retry_message_id,)).fetchone()
+                return self._admin_message_from_row(row), True
+            existing = self._connection.execute("SELECT * FROM conversation_message WHERE client_request_id=?", (request_id,)).fetchone()
+            if existing is not None:
+                if int(existing["user_id"]) != user_id or str(existing["content"]) != content:
+                    raise ValueError("request id already used")
+                return self._admin_message_from_row(existing), False
+            conversation_id = self._get_or_create_conversation_locked(user_id=user_id, open_kfid=open_kfid, occurred_at=now)
+            cur = self._connection.execute("""INSERT INTO conversation_message(conversation_id,user_id,sender_type,message_type,content,source,send_status,operator_id,client_request_id,occurred_at,created_at,updated_at) VALUES (?,?, 'human_agent','text',?,'admin','pending',?,?,?,?,?)""", (conversation_id,user_id,content,operator_id,request_id,now,now,now))
+            row = self._connection.execute("SELECT * FROM conversation_message WHERE id=?", (cur.lastrowid,)).fetchone()
+            return self._admin_message_from_row(row), True
+
+    def complete_admin_message(self, message_id: int, *, status: str, source_message_id: str | None = None, error_message: str | None = None) -> None:
+        if status not in {"sent", "failed"}:
+            raise ValueError("invalid send status")
+        with self._lock, self._connection:
+            self._connection.execute("UPDATE conversation_message SET send_status=?,source_message_id=COALESCE(?,source_message_id),error_message=?,updated_at=? WHERE id=? AND sender_type='human_agent'", (status,source_message_id,error_message,int(time.time()),message_id))
+
+    @staticmethod
+    def _admin_message_from_row(row: sqlite3.Row | None) -> AdminMessage:
+        if row is None:
+            raise LookupError("message not found")
+        return AdminMessage(int(row["id"]),int(row["user_id"]),str(row["sender_type"]),str(row["content"]),int(row["occurred_at"]),str(row["message_type"]),str(row["source"]),str(row["send_status"]),str(row["error_message"]) if row["error_message"] is not None else None,str(row["client_request_id"]) if row["client_request_id"] is not None else None)

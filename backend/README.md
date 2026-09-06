@@ -45,3 +45,18 @@ uv run python scripts/test_llm_api.py "请用一句话介绍你自己"
 - `GET /api/me/conversations/{id}`：返回当前用户指定会话的客户消息、AI 回复及 UTC 时间戳。
 
 第一版仍未包含登出、数据导出和删除接口。
+
+## 客服后台 Demo
+
+配置 `ADMIN_USERNAME` 和 `ADMIN_PASSWORD` 后，访问 `/admin` 可打开三栏客服后台。后台使用 HTTPS 下的 HTTP Basic 认证，服务端只接受配置的单一客服账号；未配置管理员凭据时相关接口返回 `admin_not_configured`。
+
+后台接口包括：
+
+- `GET /api/admin/users?q=&page=&page_size=&sort=`：按昵称或内部 `user_id` 搜索、分页和排序，返回未读数及最近消息摘要。
+- `GET /api/admin/users/{user_id}`：返回安全范围内的客户资料。
+- `GET /api/admin/users/{user_id}/conversation?before_id=&limit=`：按稳定消息 ID 分页读取会话，并标记已读。
+- `POST /api/admin/users/{user_id}/messages`：发送人工文本。请求必须带客户端 `request_id`；重复提交只返回原消息。发送失败会保留 `failed` 状态，可带 `retry_message_id` 明确重试。
+
+发送接口同时要求 `X-Requested-With: XMLHttpRequest` 请求头作为 Demo 级 CSRF 防护；生产环境还应补充基于 Session/CSRF Token 的完整方案。
+
+人工消息会先以 `pending` 写入统一 `conversation_message` 表，再调用企业微信 `kf/send_msg`，成功或失败后更新状态；操作员标识和时间一并保留。数据库启动时会将旧 `processed_message` 中的 AI 对话回填到统一消息表。
