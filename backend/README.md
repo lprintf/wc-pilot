@@ -60,3 +60,22 @@ uv run python scripts/test_llm_api.py "请用一句话介绍你自己"
 发送接口同时要求 `X-Requested-With: XMLHttpRequest` 请求头作为 Demo 级 CSRF 防护；生产环境还应补充基于 Session/CSRF Token 的完整方案。
 
 人工消息会先以 `pending` 写入统一 `conversation_message` 表，再调用企业微信 `kf/send_msg`，成功或失败后更新状态；操作员标识和时间一并保留。数据库启动时会将旧 `processed_message` 中的 AI 对话回填到统一消息表。
+
+## 前端构建
+
+前端位于 `frontend/`，采用 React、TypeScript、Vite、TanStack Query 和 TanStack Virtual。生产构建包含三个独立入口：
+
+- `/`：无 JavaScript 依赖的 SEO 项目介绍页。
+- `/admin/`：客服后台，用户列表和消息列表均使用虚拟滚动及分页加载。
+- `/me/`：微信客户个人中心。
+
+Compose 中的 `frontend-builder` 是一次性构建服务，产物写入 `frontend_dist` 命名卷，再由只读 Nginx gateway 提供。正常运行时没有 Node 服务。
+
+本地验证：
+
+```powershell
+cd frontend
+corepack pnpm install
+.\node_modules\.bin\tsc.cmd --noEmit
+.\node_modules\.bin\vite.cmd build
+```

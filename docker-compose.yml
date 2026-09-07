@@ -1,6 +1,13 @@
 name: ${COMPOSE_PROJECT_NAME:-wechat-bot-dev}
 
 services:
+  frontend-builder:
+    build:
+      context: ./frontend
+    volumes:
+      - frontend_dist:/out
+    restart: "no"
+
   backend:
     build:
       context: ./backend
@@ -26,12 +33,14 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+      frontend-builder:
+        condition: service_completed_successfully
     expose:
       - "8080"
     ports:
       - "${WECHAT_BOT_HOST_PORT:-8060}:8080"
     volumes:
-      - ./nginx/static/WW_verify_wVpUiYfAUwoEd9II.txt:/usr/share/nginx/html/WW_verify_wVpUiYfAUwoEd9II.txt:ro
+      - frontend_dist:/usr/share/nginx/html:ro
     read_only: true
     tmpfs:
       - /var/cache/nginx
@@ -60,3 +69,4 @@ networks:
 
 volumes:
   bot_data:
+  frontend_dist:

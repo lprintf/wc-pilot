@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="企业微信客服 AI 与人工协作 Demo，展示消息同步、智能回复和客服后台。">
+  <meta property="og:title" content="企业微信客服 AI Demo"><meta property="og:description" content="面向客服团队的 AI + 人工协作消息工作台。"><meta property="og:type" content="website"><meta property="og:url" content="https://wc-dev.lprintf.com/">
+  <link rel="canonical" href="https://wc-dev.lprintf.com/"><title>企业微信客服 AI Demo</title>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"企业微信客服 AI Demo","applicationCategory":"BusinessApplication","operatingSystem":"Web","description":"面向客服团队的企业微信客服 AI 与人工协作演示。"}</script>
+  <style>:root{font-family:Inter,system-ui,-apple-system,"Segoe UI","PingFang SC",sans-serif;color:#182230;background:#f6f8fb}*{box-sizing:border-box}body{margin:0}.hero,.section{max-width:1020px;margin:auto;padding:70px 24px}.hero{padding-top:110px;padding-bottom:100px}.eyebrow{color:#1677ff;font-size:12px;letter-spacing:.14em;font-weight:700}.hero h1{max-width:780px;margin:18px 0;font-size:clamp(40px,7vw,76px);line-height:1.06;letter-spacing:-.04em}.lead{max-width:660px;color:#5e6b7a;font-size:20px;line-height:1.65}.actions{display:flex;gap:12px;margin-top:30px}.actions a{padding:12px 18px;border-radius:9px;background:#1677ff;color:#fff;text-decoration:none}.actions .secondary{background:#e8eef8;color:#24507d}.section h2{font-size:32px}.features{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.features article{padding:24px;border:1px solid #e1e8f0;border-radius:16px;background:#fff}.features span{color:#1677ff;font-weight:700}.features p,.section>p{color:#5e6b7a;line-height:1.7}.architecture{background:#eaf3ff;border-radius:22px}.architecture code{display:block;margin-top:20px;padding:16px;border-radius:10px;background:#17202a;color:#d7e8ff}footer{padding:50px 24px;text-align:center;color:#8995a3;font-size:13px}@media(max-width:700px){.hero{padding-top:70px}.features{grid-template-columns:1fr}.lead{font-size:17px}}</style>
+</head>
+<body><main>
+  <header class="hero"><p class="eyebrow">WECHAT CUSTOMER SERVICE · AI DEMO</p><h1>让 AI 与人工客服，在同一条消息链路里协作</h1><p class="lead">面向客服团队的企业微信客服 Demo：同步客户消息、生成 AI 回复，并在需要时由人工客服安全接管。</p><nav class="actions"><a href="/admin">进入客服后台</a><a class="secondary" href="#architecture">了解架构</a></nav></header>
+  <section class="section"><h2>从客户消息到可追踪回复</h2><div class="features"><article><span>01</span><h3>消息同步</h3><p>通过企业微信客服 API 拉取消息，保留稳定游标和幂等记录。</p></article><article><span>02</span><h3>AI + 人工</h3><p>AI 回复与人工客服消息明确区分，发送失败可追踪、可重试。</p></article><article><span>03</span><h3>数据边界</h3><p>后台按内部用户 ID 校验访问范围，不向前端暴露外部身份标识。</p></article></div></section>
+  <section id="architecture" class="section architecture"><h2>清晰、可演进的架构</h2><p>浏览器通过 Nginx 访问静态前端和 FastAPI API；消息、身份、状态与审计记录保存在后端。当前 Demo 聚焦微信客服消息，不宣称覆盖完整会话内容存档。</p><code>微信客服 → FastAPI → SQLite → AI / 人工客服</code></section>
+  <section class="section"><h2>适合演示，也为下一步留出空间</h2><p>当前版本保持单客服账号和轻量部署，后续可演进到多客服协作、实时推送、更多消息类型和 PostgreSQL。</p></section>
+</main><footer>企业微信客服 AI Demo · 隐私与数据范围以实际部署说明为准</footer></body></html>

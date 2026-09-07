@@ -10,3 +10,5 @@ ref
 
 # opt
 meeting_log
+node_modules
+frontend/dist

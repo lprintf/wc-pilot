@@ -25,8 +25,7 @@ from wechat_bot.crypto import CallbackCryptoError, WeComCallbackCrypto
 from wechat_bot.llm import OpenAICompatibleLLM
 from wechat_bot.service import CustomerServiceProcessor
 from wechat_bot.store import MessageStore
-from wechat_bot.admin_web import render_admin_console
-from wechat_bot.web import render_authentication_required, render_user_center
+from wechat_bot.web import render_authentication_required
 from wechat_bot.wecom import WeComClient
 
 
@@ -226,15 +225,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         user_id = authenticated_user_id(request)
         if user_id is None:
             return secure_html(render_authentication_required(), status_code=401)
-        profile = runtime.store.get_customer_profile(user_id)
-        if profile is None:
+        if runtime.store.get_customer_profile(user_id) is None:
             return secure_html(render_authentication_required(), status_code=404)
-        conversations = []
-        for summary in runtime.store.list_conversations(user_id):
-            messages = runtime.store.conversation_messages(user_id, summary.id)
-            if messages is not None:
-                conversations.append((summary, messages))
-        return secure_html(render_user_center(profile, conversations))
+        response = RedirectResponse("/me/", status_code=303)
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     @app.get("/api/me")
     async def get_current_user(request: Request) -> Response:
@@ -315,9 +310,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         denied = require_admin(request)
         if denied is not None:
             return denied
-        response = secure_html(render_admin_console())
-        response.headers["Content-Security-Policy"] = "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"
-        return response
+        return RedirectResponse("/admin/", status_code=303)
 
     @app.get("/api/admin/users")
     async def admin_users(request: Request, q: str = Query(""), page: int = Query(1, ge=1), page_size: int = Query(50, ge=1, le=100), sort: str = Query("recent")) -> Response:
@@ -331,6 +324,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return admin_error("service_not_ready", "客服账号尚未就绪", 503, retryable=True)
         users, total = runtime.store.list_admin_users(runtime.processor.managed_open_kfid, search=q, page=page, page_size=page_size, sort=sort)
         return JSONResponse({"users": [{"id": u.id, "nickname": u.nickname, "avatar_url": u.avatar_url if u.avatar_url.startswith("https://") else "", "last_message_preview": u.last_message_preview, "last_active_at": timestamp_json(u.last_active_at), "unread_count": u.unread_count} for u in users], "page": page, "page_size": page_size, "total": total})
+
+    @app.get("/api/admin/session")
+    async def admin_session(request: Request) -> Response:
+        denied = require_admin(request)
+        if denied is not None:
+            return denied
+        return Response(status_code=204)
 
     @app.get("/api/admin/users/{user_id}")
     async def admin_user(request: Request, user_id: int) -> Response:
