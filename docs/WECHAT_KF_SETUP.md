@@ -177,12 +177,45 @@ uv run python scripts/test_wechat_kf_api.py --send-test
 uv run python scripts/test_wechat_kf_api.py --send-test --content "测试回复"
 ```
 
+列出最近客户的昵称、完整企业微信客户 ID、性别及最后消息时间（UTC）：
+
+```powershell
+uv run python scripts/test_wechat_kf_api.py --list-customers
+```
+
+列表按客户去重、最近消息优先，只包含本次 `sync_msg` 拉取到的客户（默认最近三天），不是全部历史客户。资料接口失败时仍输出客户 ID 和时间，并打印错误码。这里的 `external_userid` 是企业微信客户 ID，不是后台内部的数字用户 ID。
+
+要查看更早的客户，使用 `--database` 读取后端保存的全部历史客户（在 `backend` 目录运行）：
+
+```powershell
+uv run python scripts/test_wechat_kf_api.py --list-customers --database "data/wechat_bot.db"
+```
+
+该模式只读 SQLite，不请求企业微信、不需要 API 配置，显示后台数字用户 ID、完整客服账号 ID、完整客户 ID、缓存昵称、性别和最近活跃时间。默认列出数据库中所有客服账号的客户，可用 `--open-kfid` 筛选。客户资料是后端保存的缓存；数据库中尚未保存的客户无法列出。`--database` 不能与 `--send-test` 同用，请复制目标 ID 后单独执行发送测试。
+
+Compose 部署的数据库位于容器的 `/app/data/wechat_bot.db`（若配置了 `DATABASE_PATH`，以配置为准），不是本机的 `backend/data`。使用[开发覆盖配置](COMPOSE_DEV.md)挂载脚本后，从项目根目录运行：
+
+```powershell
+docker compose -f docker-compose.yml -f compose.dev.yaml up -d --build
+docker compose exec -T backend python scripts/test_wechat_kf_api.py --list-customers --database data/wechat_bot.db
+```
+
+相对路径兼容 Git Bash，避免 `/app/...` 被自动转换成 Windows 路径。`--max-pages` 只控制最近三天消息的分页上限，无法扩大企业微信的历史保留时间。
+
+复制列表中的 `external_userid` 来指定测试对象：
+
+```powershell
+uv run python scripts/test_wechat_kf_api.py --send-test --external-userid "wm完整客户ID" --content "测试回复"
+```
+
+指定目标发送时直接调用 `kf/send_msg`，不依赖最近消息列表，也不经过后端本地额度检查。失败会打印真实 `errcode` 和 `errmsg`；成功会真实发送消息、消耗一次额度，且不会更新后端的本地发送计数。
+
 脚本行为：
 
 - 自动读取仓库根目录 `.env`。
 - 如果只有一个可见客服账号，自动使用该账号。
 - 如果有多个账号，必须设置 `WECHAT_KF_OPEN_KFID` 或传入 `--open-kfid`。
-- 不输出 Secret、access token、完整 `open_kfid` 或客户 ID。
+- 不输出 Secret 或 access token；显式使用 `--list-customers` 时输出完整客户 ID，数据库模式还会输出完整客服账号 ID。
 - 未指定 `--send-test` 时不会发送消息。
 
 已验证的成功输出形态：

@@ -26,10 +26,13 @@ from wechat_bot.llm import OpenAICompatibleLLM
 from wechat_bot.service import CustomerServiceProcessor
 from wechat_bot.store import MessageStore
 from wechat_bot.web import render_authentication_required
-from wechat_bot.wecom import WeComClient
+from wechat_bot.wecom import WeComAPIError, WeComClient
+from wechat_bot.replies import ReplyUnavailable, send_reply
 
 
 LOGGER = logging.getLogger(__name__)
+INITIALIZATION_RETRY_SECONDS = 5.0
+MAX_INITIALIZATION_RETRY_SECONDS = 60.0
 
 
 class Runtime:
@@ -47,8 +50,10 @@ class Runtime:
             self.auth,
         )
         self.crypto: WeComCallbackCrypto | None = None
-        self.errors = settings.callback_config_errors()
-        if not self.errors:
+        self._config_errors = settings.callback_config_errors()
+        self._initialization_error = ""
+        self._initialization_task: asyncio.Task[None] | None = None
+        if not self._config_errors:
             self.crypto = WeComCallbackCrypto(
                 settings.callback_token,
                 settings.encoding_aes_key,
@@ -57,15 +62,43 @@ class Runtime:
         self.tasks: set[asyncio.Task[None]] = set()
 
     @property
+    def errors(self) -> list[str]:
+        return self._config_errors + (
+            [self._initialization_error] if self._initialization_error else []
+        )
+
+    @property
     def ready(self) -> bool:
         return not self.errors and bool(self.processor.managed_open_kfid)
 
     async def start(self) -> None:
+        if not await self._initialize():
+            self._initialization_task = asyncio.create_task(self._retry_initialization())
+
+    async def _initialize(self) -> bool:
         try:
             await self.processor.bootstrap()
         except Exception as exc:
-            LOGGER.exception("customer-service cursor initialization failed")
-            self.errors.append(f"cursor initialization failed: {type(exc).__name__}")
+            # API/transport exception text may contain credentials or request URLs.
+            detail = type(exc).__name__
+            if isinstance(exc, WeComAPIError):
+                detail += f" ({exc.operation}, errcode={exc.errcode})"
+                if exc.errcode == 60020:
+                    detail += "; add the service egress IP to the application's trusted IPs"
+            self._initialization_error = f"cursor initialization failed: {detail}"
+            LOGGER.warning("%s; initialization will retry", self._initialization_error)
+            return False
+        self._initialization_error = ""
+        LOGGER.info("customer-service initialization completed")
+        return True
+
+    async def _retry_initialization(self) -> None:
+        delay = INITIALIZATION_RETRY_SECONDS
+        while True:
+            await asyncio.sleep(delay)
+            if await self._initialize():
+                return
+            delay = min(delay * 2, MAX_INITIALIZATION_RETRY_SECONDS)
 
     def schedule(self, event: CustomerServiceEvent) -> None:
         if event.open_kfid != self.processor.managed_open_kfid:
@@ -83,6 +116,9 @@ class Runtime:
             )
 
     async def close(self) -> None:
+        if self._initialization_task is not None:
+            self._initialization_task.cancel()
+            await asyncio.gather(self._initialization_task, return_exceptions=True)
         if self.tasks:
             _done, pending = await asyncio.wait(self.tasks, timeout=10)
             for task in pending:
@@ -401,9 +437,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             runtime.store.complete_admin_message(message.id, status="failed", error_message="user_unavailable")
             return admin_error("user_unavailable", "用户当前不可发送", 409, retryable=True)
         try:
-            source_message_id = await runtime.wecom.send_text(open_kfid, external_userid, message.content)
+            source_message_id = await send_reply(runtime.wecom, runtime.store, open_kfid, external_userid, message.content)
+        except ReplyUnavailable as exc:
+            upstream = exc.__cause__ if isinstance(exc.__cause__, WeComAPIError) else None
+            LOGGER.warning(
+                "admin message delivery blocked: message_id=%s code=%s source=%s errcode=%s",
+                message.id, exc.code, "wecom" if upstream else "local",
+                upstream.errcode if upstream else None,
+            )
+            runtime.store.complete_admin_message(message.id, status="failed", error_message=exc.code)
+            failed = runtime.store.get_admin_message_by_request(user_id, message.client_request_id or request_id)
+            return JSONResponse({"error": {"code": exc.code, "message": str(exc), "retryable": False}, "message": admin_message_json(failed or message)}, status_code=409)
         except Exception as exc:
-            LOGGER.warning("admin message delivery failed: message_id=%s error=%s", message.id, type(exc).__name__)
+            LOGGER.warning("admin message delivery failed: message_id=%s error=%s errcode=%s", message.id, type(exc).__name__, exc.errcode if isinstance(exc, WeComAPIError) else None)
             runtime.store.complete_admin_message(message.id, status="failed", error_message="delivery_failed")
             failed = runtime.store.get_admin_message_by_request(user_id, message.client_request_id or request_id)
             return JSONResponse({"error": {"code": "delivery_failed", "message": "企业微信发送失败，可点击重试", "retryable": True}, "message": admin_message_json(failed or message)}, status_code=502)

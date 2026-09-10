@@ -10,6 +10,7 @@ from typing import Any
 from wechat_bot.auth import AuthManager, LoginTicketRateLimited
 from wechat_bot.callback import CustomerServiceEvent
 from wechat_bot.llm import LLMError, OpenAICompatibleLLM
+from wechat_bot.replies import ReplyUnavailable, send_reply
 from wechat_bot.store import MessageStore
 from wechat_bot.wecom import WeComClient
 
@@ -67,7 +68,6 @@ class CustomerServiceProcessor:
                 "multiple customer-service accounts are visible; set WECHAT_KF_OPEN_KFID"
             )
 
-        self._managed_open_kfid = selected
         if self._store.get_cursor(selected) is None:
             baseline = await self._wecom.sync_messages(selected)
             self._store.set_cursor(selected, baseline.next_cursor)
@@ -77,6 +77,7 @@ class CustomerServiceProcessor:
             )
         else:
             LOGGER.info("restored persisted customer-service cursor")
+        self._managed_open_kfid = selected
 
     async def handle_event(self, event: CustomerServiceEvent) -> None:
         if not self._managed_open_kfid:
@@ -96,6 +97,15 @@ class CustomerServiceProcessor:
             messages = sorted(
                 result.messages, key=lambda item: int(item.get("send_time", 0))
             )
+            # All messages in this batch have already arrived at WeChat. Register
+            # them before replying so a backlog cannot reset the quota per reply.
+            async with self._store.reply_lock(event.open_kfid):
+                for message in messages:
+                    if int(message.get("origin", 0)) == 3:
+                        self._store.observe_customer_message(
+                            event.open_kfid, str(message.get("external_userid", "")),
+                            str(message.get("msgid", "")), int(message.get("send_time", 0)),
+                        )
             customer_user_ids = await self._prepare_customer_profiles(
                 event.open_kfid, messages
             )
@@ -190,6 +200,27 @@ class CustomerServiceProcessor:
         message: dict[str, Any],
         customer_user_ids: dict[str, int],
     ) -> bool:
+        try:
+            return await self._process_customer_message(open_kfid, message, customer_user_ids)
+        except ReplyUnavailable as exc:
+            external_userid = str(message["external_userid"])
+            send_time = int(message.get("send_time", 0))
+            user_id = self._store.get_or_create_customer(open_kfid, external_userid, seen_at=send_time)
+            text = message.get("text", {})
+            self._store.mark_unanswered(
+                msgid=str(message["msgid"]), user_id=user_id, open_kfid=open_kfid,
+                external_userid=external_userid, send_time=send_time,
+                customer_content=str(text.get("content", "")) if isinstance(text, dict) else "",
+            )
+            LOGGER.info("customer reply skipped: reason=%s", exc.code)
+            return False
+
+    async def _process_customer_message(
+        self,
+        open_kfid: str,
+        message: dict[str, Any],
+        customer_user_ids: dict[str, int],
+    ) -> bool:
         msgid = str(message.get("msgid", ""))
         if not msgid or self._store.is_processed(msgid):
             return False
@@ -201,6 +232,8 @@ class CustomerServiceProcessor:
         if not external_userid:
             LOGGER.warning("ignored customer message without external_userid")
             return False
+        async with self._store.reply_lock(open_kfid):
+            self._store.observe_customer_message(open_kfid, external_userid, msgid, send_time)
         user_id = customer_user_ids.get(external_userid)
         if user_id is None:
             user_id = self._store.get_or_create_customer(
@@ -227,6 +260,7 @@ class CustomerServiceProcessor:
             )
             return False
 
+        self._store.reply_budget(open_kfid, external_userid).footer()
         if content in PROFILE_COMMANDS and self._auth is not None:
             try:
                 ticket = self._auth.issue_login_ticket(user_id)
@@ -242,7 +276,7 @@ class CustomerServiceProcessor:
                 )
                 stored_reply = LOGIN_LINK_HISTORY_REPLY
             try:
-                reply_message_id = await self._wecom.send_text(open_kfid, external_userid, reply)
+                reply_message_id = await send_reply(self._wecom, self._store, open_kfid, external_userid, reply)
             except Exception:
                 if ticket is not None:
                     self._auth.cancel_login_ticket(ticket.token)
@@ -265,7 +299,7 @@ class CustomerServiceProcessor:
         except (LLMError, ValueError):
             LOGGER.exception("LLM request failed; using fallback reply")
             reply = FALLBACK_REPLY
-        reply_message_id = await self._wecom.send_text(open_kfid, external_userid, reply)
+        reply_message_id = await send_reply(self._wecom, self._store, open_kfid, external_userid, reply)
         self._store.mark_sent(
             msgid=msgid,
             user_id=user_id,

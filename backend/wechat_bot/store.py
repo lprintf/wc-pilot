@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 import threading
 import time
@@ -9,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from wechat_bot.llm import ChatMessage
+from wechat_bot.replies import ReplyBudget
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +81,7 @@ class MessageStore:
         self._connection = sqlite3.connect(path, check_same_thread=False)
         self._connection.row_factory = sqlite3.Row
         self._lock = threading.Lock()
+        self._reply_locks: dict[str, asyncio.Lock] = {}
         with self._connection:
             self._connection.execute("PRAGMA journal_mode=WAL")
             self._connection.execute("PRAGMA foreign_keys=ON")
@@ -214,6 +217,17 @@ class MessageStore:
                     last_read_message_id INTEGER NOT NULL DEFAULT 0,
                     updated_at INTEGER NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS kf_reply_budget (
+                    open_kfid TEXT NOT NULL,
+                    external_userid TEXT NOT NULL,
+                    received_at INTEGER NOT NULL,
+                    used INTEGER NOT NULL DEFAULT 0,
+                    blocked_code TEXT,
+                    PRIMARY KEY(open_kfid, external_userid)
+                );
+                CREATE TABLE IF NOT EXISTS kf_received_message (
+                    msgid TEXT PRIMARY KEY
+                );
                 """
             )
             columns = {
@@ -246,6 +260,67 @@ class MessageStore:
             )
             self._backfill_conversations_locked()
             self._backfill_conversation_messages_locked()
+            # Seed existing installations once, including ignored non-text messages.
+            self._connection.execute("INSERT OR IGNORE INTO kf_received_message SELECT msgid FROM processed_message")
+            self._connection.execute(
+                """WITH latest AS (
+                    SELECT open_kfid, external_userid, MAX(user_id) AS user_id,
+                           MAX(send_time) AS received_at
+                    FROM processed_message GROUP BY open_kfid, external_userid
+                )
+                INSERT OR IGNORE INTO kf_reply_budget(open_kfid, external_userid, received_at, used)
+                SELECT l.open_kfid, l.external_userid, l.received_at,
+                    (SELECT COUNT(*) FROM processed_message p
+                     WHERE p.open_kfid=l.open_kfid AND p.external_userid=l.external_userid
+                       AND p.status='sent' AND p.created_at >= l.received_at)
+                    + (SELECT COUNT(*) FROM conversation_message m
+                       JOIN conversation c ON c.id=m.conversation_id
+                       WHERE c.subject_id=l.open_kfid AND m.user_id=l.user_id
+                         AND m.sender_type='human_agent' AND m.send_status='sent'
+                         AND m.updated_at >= l.received_at)
+                FROM latest l"""
+            )
+
+    def reply_lock(self, open_kfid: str) -> asyncio.Lock:
+        return self._reply_locks.setdefault(open_kfid, asyncio.Lock())
+
+    def observe_customer_message(self, open_kfid: str, external_userid: str, msgid: str, send_time: int) -> None:
+        if not msgid or not external_userid or send_time <= 0:
+            return
+        with self._lock, self._connection:
+            inserted = self._connection.execute(
+                "INSERT OR IGNORE INTO kf_received_message(msgid) VALUES (?)", (msgid,)
+            ).rowcount
+            if inserted:
+                self._connection.execute(
+                    """INSERT INTO kf_reply_budget(open_kfid, external_userid, received_at, used)
+                    VALUES (?, ?, ?, 0) ON CONFLICT(open_kfid, external_userid) DO UPDATE SET
+                    received_at=excluded.received_at, used=0, blocked_code=NULL
+                    WHERE excluded.received_at >= kf_reply_budget.received_at""",
+                    (open_kfid, external_userid, send_time),
+                )
+
+    def reply_budget(self, open_kfid: str, external_userid: str) -> ReplyBudget:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT received_at, used, blocked_code FROM kf_reply_budget WHERE open_kfid=? AND external_userid=?",
+                (open_kfid, external_userid),
+            ).fetchone()
+        return ReplyBudget(int(row["received_at"]), int(row["used"]), row["blocked_code"]) if row else ReplyBudget(0, 0)
+
+    def consume_reply(self, open_kfid: str, external_userid: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                "UPDATE kf_reply_budget SET used=used+1 WHERE open_kfid=? AND external_userid=?",
+                (open_kfid, external_userid),
+            )
+
+    def exhaust_reply_budget(self, open_kfid: str, external_userid: str, *, expired: bool) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                "UPDATE kf_reply_budget SET used=5, blocked_code=? WHERE open_kfid=? AND external_userid=?",
+                ("reply_window_expired" if expired else "reply_limit_reached", open_kfid, external_userid),
+            )
 
     def close(self) -> None:
         with self._lock:
@@ -727,6 +802,13 @@ class MessageStore:
             "ignored",
         )
 
+    def mark_unanswered(
+        self, *, msgid: str, user_id: int, open_kfid: str,
+        external_userid: str, send_time: int, customer_content: str,
+    ) -> None:
+        self._record(msgid, user_id, open_kfid, external_userid, send_time,
+                     customer_content, "", "ignored")
+
     def history(self, user_id: int, *, turns: int = 6) -> list[ChatMessage]:
         with self._lock:
             rows = self._connection.execute(
@@ -793,7 +875,7 @@ class MessageStore:
                 """,
                 (recorded_at, conversation_id),
             )
-            if status == "sent":
+            if customer_content:
                 self._connection.execute(
                     """INSERT OR IGNORE INTO conversation_message(
                        conversation_id, user_id, sender_type, message_type, content,
@@ -802,6 +884,7 @@ class MessageStore:
                     (conversation_id, user_id, customer_content, msgid,
                      send_time if send_time > 0 else recorded_at, recorded_at, recorded_at),
                 )
+            if status == "sent":
                 self._connection.execute(
                     """INSERT OR IGNORE INTO conversation_message(
                        conversation_id, user_id, sender_type, message_type, content,

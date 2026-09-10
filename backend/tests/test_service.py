@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from typing import Any
 
@@ -99,6 +100,9 @@ class FakeLLM:
 
 class CustomerServiceProcessorTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
+        clock = patch("wechat_bot.replies.time.time", return_value=123)
+        clock.start()
+        self.addCleanup(clock.stop)
         self.tempdir = tempfile.TemporaryDirectory()
         self.store = MessageStore(Path(self.tempdir.name) / "test.db")
 
@@ -124,7 +128,7 @@ class CustomerServiceProcessorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(llm.questions, ["你好"])
         self.assertEqual(
             wecom.sent,
-            [("wk-account", "customer", "你好，请问有什么可以帮你？")],
+            [("wk-account", "customer", "你好，请问有什么可以帮你？\n---\n客服剩余回复次数4，约48小时后清空，回复任意消息重置。")],
         )
         self.assertEqual(self.store.get_cursor("wk-account"), "cursor-2")
         self.assertTrue(self.store.is_processed("customer-1"))
@@ -151,7 +155,8 @@ class CustomerServiceProcessorTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
-        self.assertEqual(wecom.sent[0][2], FALLBACK_REPLY)
+        self.assertEqual(wecom.sent[0][2].split("\n---\n")[0], FALLBACK_REPLY)
+        self.assertIn("客服剩余回复次数4", wecom.sent[0][2])
 
     async def test_profile_failure_does_not_block_normal_reply(self) -> None:
         wecom = FakeWeCom(profile_fail=True)
@@ -249,6 +254,37 @@ class CustomerServiceProcessorTests(unittest.IsolatedAsyncioTestCase):
     def test_profile_command_aliases_include_my_messages(self) -> None:
         self.assertIn("我的消息", PROFILE_COMMANDS)
 
+    async def test_batch_uses_one_quota_and_preserves_unanswered_message(self) -> None:
+        wecom = FakeWeCom()
+        template = wecom.sync_results[1].messages[0]
+        wecom.sync_results[1].messages[:] = [
+            {**template, "msgid": f"batch-{index}", "text": {"content": f"问题{index}"}}
+            for index in range(6)
+        ]
+        llm = FakeLLM()
+        processor = CustomerServiceProcessor(wecom, llm, self.store)
+        await processor.bootstrap()
+        await processor.handle_event(CustomerServiceEvent("kf_msg_or_event", "token", "wk-account", 123))
+        self.assertEqual(len(wecom.sent), 5)
+        self.assertEqual(len(llm.questions), 5)
+        self.assertIn("客服剩余回复次数0", wecom.sent[-1][2])
+        self.assertTrue(self.store.is_processed("batch-5"))
+        self.assertIn("问题5", [message.content for message in self.store.history(1)])
+        self.assertEqual(self.store.get_cursor("wk-account"), "cursor-2")
+
+    async def test_non_text_customer_message_resets_quota(self) -> None:
+        wecom = FakeWeCom()
+        processor = CustomerServiceProcessor(wecom, FakeLLM(), self.store)
+        await processor.bootstrap()
+        await processor.handle_event(CustomerServiceEvent("kf_msg_or_event", "token", "wk-account", 123))
+        self.assertEqual(self.store.reply_budget("wk-account", "customer").used, 1)
+        await processor._process_message("wk-account", {
+            "msgid": "image", "origin": 3, "external_userid": "customer",
+            "send_time": 124, "msgtype": "image",
+        }, {"customer": 1})
+        self.assertEqual(self.store.reply_budget("wk-account", "customer").used, 0)
+        self.assertEqual(len(wecom.sent), 1)
+
     async def test_repeated_profile_command_has_generic_rate_limit_message(
         self,
     ) -> None:
@@ -281,5 +317,6 @@ class CustomerServiceProcessorTests(unittest.IsolatedAsyncioTestCase):
             "wk-account", repeated_message, {"customer": user_id}
         )
 
-        self.assertEqual(wecom.sent[-1][2], LOGIN_LINK_RATE_LIMIT_REPLY)
+        self.assertEqual(wecom.sent[-1][2].split("\n---\n")[0], LOGIN_LINK_RATE_LIMIT_REPLY)
+        self.assertIn("客服剩余回复次数4", wecom.sent[-1][2])
         self.assertNotIn("我的信息", LOGIN_LINK_RATE_LIMIT_REPLY)

@@ -28,7 +28,7 @@ Examples (PowerShell, run from the repository root):
         --sync-token "callback-temporary-token"
 
     # 4. Continue pulling from a cursor returned by an earlier run.
-    uv run --project backend python backend/scripts/test_wechat_kf_api.py
+    uv run --project backend python backend/scripts/test_wechat_kf_api.py \
         --cursor "previous-next-cursor" --max-pages 50
 
     # 5. Explicitly reply to the most recent customer message. This sends a
@@ -46,13 +46,18 @@ When already in the backend directory, the shorter equivalent is:
 
 Run with --help to see all options. Environment variables override values in
 the dotenv file. The script masks identifiers in its normal output.
+Use --list-customers to print recent customers' profiles and full external IDs.
+Add --database "data/wechat_bot.db" to list all locally saved customers offline.
+Use --send-test --external-userid "wm..." to send to a specific customer.
 """
 
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import os
+import sqlite3
 import sys
 import urllib.error
 import urllib.parse
@@ -75,6 +80,8 @@ class ApiError(RuntimeError):
                 "assign this account to API management"
             ),
             60030: "include the customer-service agent in the application's visibility scope",
+            95001: "reply quota exhausted; wait for a new customer message",
+            95002: "48-hour reply window expired; wait for a new customer message",
         }
         hint = f"; action: {hints[errcode]}" if errcode in hints else ""
         super().__init__(
@@ -115,16 +122,36 @@ def parse_args() -> argparse.Namespace:
         help="maximum sync_msg pages to read (default: 20)",
     )
     parser.add_argument(
+        "--list-customers",
+        action="store_true",
+        help="list recent customer profiles and full external_userid values (read-only unless --send-test)",
+    )
+    parser.add_argument(
+        "--database",
+        type=Path,
+        help="read all saved customers from this SQLite database; requires --list-customers, no API calls",
+    )
+    parser.add_argument(
+        "--external-userid",
+        type=str.strip,
+        help="target WeChat external_userid, not the admin user ID; with --send-test, skips sync unless --list-customers",
+    )
+    parser.add_argument(
         "--send-test",
         action="store_true",
-        help="send a reply to the most recent customer message; omitted is read-only",
+        help="send to --external-userid or the most recent customer; omitted is read-only",
     )
     parser.add_argument(
         "--content",
         default="test",
         help="reply text used with --send-test (default: test)",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.external_userid == "":
+        parser.error("--external-userid cannot be empty")
+    if args.database is not None and (not args.list_customers or args.send_test):
+        parser.error("--database requires --list-customers and cannot be combined with --send-test")
+    return args
 
 
 def load_env(path: Path) -> dict[str, str]:
@@ -292,6 +319,65 @@ def latest_customer_message(messages: list[dict[str, Any]]) -> dict[str, Any] | 
     return max(candidates, key=lambda message: int(message.get("send_time", 0)))
 
 
+def print_customers(access_token: str, messages: list[dict[str, Any]]) -> None:
+    latest: dict[str, int] = {}
+    for message in messages:
+        if int(message.get("origin", 0)) != 3:
+            continue
+        external_userid = str(message.get("external_userid", "")).strip()
+        if external_userid:
+            latest[external_userid] = max(latest.get(external_userid, 0), int(message.get("send_time", 0)))
+    identifiers = sorted(latest, key=lambda identifier: (-latest[identifier], identifier))
+    print(f"customers: {len(identifiers)} (from pulled messages only; timestamps in UTC)")
+    print("external_userid\tnickname\tgender\tlast_message_at")
+    for offset in range(0, len(identifiers), 100):
+        batch = identifiers[offset:offset + 100]
+        profiles: dict[str, dict[str, Any]] = {}
+        try:
+            result = check_api_result("kf/customer/batchget", request_json(
+                "POST", api_url("kf/customer/batchget", access_token),
+                {"external_userid_list": batch},
+            ))
+            customers = result.get("customer_list", [])
+            if not isinstance(customers, list):
+                raise RuntimeError("customer_list is not a list")
+            profiles = {str(customer.get("external_userid", "")): customer
+                        for customer in customers if isinstance(customer, dict)}
+        except (RuntimeError, ValueError) as exc:
+            print(f"warning: profiles unavailable; showing IDs and message times: {exc}", file=sys.stderr)
+        for identifier in batch:
+            profile = profiles.get(identifier, {})
+            # JSON quoting keeps arbitrary nicknames on one terminal line.
+            nickname = json.dumps(profile.get("nickname", ""), ensure_ascii=False)
+            gender = {"1": "男", "2": "女"}.get(str(profile.get("gender", 0)), "未知")
+            timestamp = datetime.fromtimestamp(latest[identifier], timezone.utc).isoformat() if latest[identifier] else "unknown"
+            print(f"{identifier}\t{nickname}\t{gender}\t{timestamp}")
+
+
+def print_database_customers(path: Path, open_kfid: str | None = None) -> None:
+    # Read-only URI avoids creating a new empty database for a mistyped path.
+    connection = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+    try:
+        rows = connection.execute(
+            """SELECT i.user_id, i.subject_id, i.external_id,
+                      COALESCE(p.nickname, ''), COALESCE(p.gender, 0),
+                      COALESCE(p.last_seen_at, i.created_at)
+               FROM user_identity i LEFT JOIN customer_profile p ON p.user_id=i.user_id
+               WHERE i.provider='wecom_kf' AND (? IS NULL OR i.subject_id=?)
+               ORDER BY 6 DESC, i.user_id DESC, i.subject_id""",
+            (open_kfid, open_kfid),
+        ).fetchall()
+    finally:
+        connection.close()
+    print(f"customers: {len(rows)} (all saved customer identities; cached profiles; timestamps in UTC)")
+    print("user_id\topen_kfid\texternal_userid\tnickname\tgender\tlast_seen_at")
+    for user_id, account, identifier, nickname, gender, seen_at in rows:
+        name = json.dumps(nickname, ensure_ascii=False)
+        gender_label = {1: "男", 2: "女"}.get(gender, "未知")
+        timestamp = datetime.fromtimestamp(seen_at, timezone.utc).isoformat() if seen_at else "unknown"
+        print(f"{user_id}\t{account}\t{identifier}\t{name}\t{gender_label}\t{timestamp}")
+
+
 def send_text(
     access_token: str, open_kfid: str, external_userid: str, content: str
 ) -> str:
@@ -318,6 +404,10 @@ def main() -> int:
     try:
         if args.max_pages < 1:
             raise ValueError("--max-pages must be at least 1")
+        if args.database is not None:
+            print_database_customers(args.database, args.open_kfid)
+            print("send: skipped (read-only database mode; no API calls)")
+            return 0
         config = load_env(args.env_file.resolve())
         corp_id = require_config(config, "CorpID")
         app_agent_id = require_config(config, "APP_AGENT_ID")
@@ -343,38 +433,42 @@ def main() -> int:
             {"open_kfid": str(account.get("open_kfid", ""))}, "open_kfid"
         )
 
-        messages, next_cursor, pages = sync_messages(
-            access_token,
-            open_kfid,
-            args.cursor,
-            args.sync_token,
-            args.max_pages,
-        )
-        customer_messages = [
-            message for message in messages if int(message.get("origin", 0)) == 3
-        ]
-        print(
-            f"kf/sync_msg: ok ({pages} page(s), {len(messages)} message(s), "
-            f"{len(customer_messages)} customer message(s))"
-        )
-        print(f"next_cursor: {mask_identifier(next_cursor)}")
+        messages: list[dict[str, Any]] = []
+        if not (args.send_test and args.external_userid) or args.list_customers:
+            messages, next_cursor, pages = sync_messages(
+                access_token, open_kfid, args.cursor, args.sync_token, args.max_pages,
+            )
+            customer_messages = [
+                message for message in messages if int(message.get("origin", 0)) == 3
+            ]
+            print(
+                f"kf/sync_msg: ok ({pages} page(s), {len(messages)} message(s), "
+                f"{len(customer_messages)} customer message(s))"
+            )
+            print(f"next_cursor: {mask_identifier(next_cursor)}")
+        if args.list_customers:
+            print_customers(access_token, messages)
 
         if not args.send_test:
             print("send: skipped (read-only mode; pass --send-test to reply)")
             return 0
 
-        target = latest_customer_message(messages)
-        if target is None:
-            raise RuntimeError("no recent customer message is available to reply to")
+        external_userid = args.external_userid
+        if not external_userid:
+            target = latest_customer_message(messages)
+            if target is None:
+                raise RuntimeError("no recent customer message is available; pass --external-userid to target a known customer")
+            external_userid = str(target["external_userid"])
+        print(f"send: target={mask_identifier(external_userid)}", flush=True)
         msgid = send_text(
             access_token,
             open_kfid,
-            str(target["external_userid"]),
+            external_userid,
             args.content,
         )
         print(f"kf/send_msg: ok (msgid returned={bool(msgid)})")
         return 0
-    except (ApiError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+    except (ApiError, RuntimeError, ValueError, json.JSONDecodeError, sqlite3.Error) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
