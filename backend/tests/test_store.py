@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from wechat_bot.llm import ChatMessage
@@ -10,6 +11,49 @@ from wechat_bot.store import MessageStore
 
 
 class MessageStoreTests(unittest.TestCase):
+    def test_batch_record_rolls_back_all_messages_on_failure(self) -> None:
+        user = self.store.get_or_create_customer("kf", "customer", seen_at=100)
+        record = self.store._record_locked
+        count = 0
+        def fail_on_second(*args):
+            nonlocal count
+            count += 1
+            if count == 2:
+                raise sqlite3.OperationalError("simulated write failure")
+            return record(*args)
+        with patch.object(self.store, "_record_locked", side_effect=fail_on_second):
+            with self.assertRaises(sqlite3.OperationalError):
+                self.store.mark_batch_sent(messages=[("first", 100, "question 1"), ("last", 101, "question 2")],
+                    user_id=user, open_kfid="kf", external_userid="customer", reply_content="answer", reply_source_message_id="out")
+        self.assertFalse(self.store.is_processed("first"))
+        self.assertFalse(self.store.is_processed("last"))
+        self.assertEqual(self.store.history(user), [])
+
+    def test_platform_reply_is_not_duplicated_on_backfill_or_restart(self) -> None:
+        user = self.store.get_or_create_customer("kf", "customer", seen_at=100)
+        args = dict(msgid="in", user_id=user, open_kfid="kf", external_userid="customer",
+                    send_time=100, customer_content="hi", reply_content="reply", reply_source_message_id="out")
+        self.store.mark_sent(**args)
+        self.store.get_or_create_customer("kf", "customer", seen_at=101)
+        self.store.mark_sent(**{**args, "reply_source_message_id": "must-not-insert"})
+        self.store.close()
+        self.store = MessageStore(self.path)
+        self.assertEqual(len(self.store.history(user)), 2)
+        self.assertEqual(self.store._connection.execute("SELECT source_message_id FROM conversation_message WHERE sender_type='ai'").fetchone()[0], "out")
+
+    def test_migration_removes_only_confirmed_synthetic_duplicate(self) -> None:
+        user = self.store.get_or_create_customer("kf", "customer", seen_at=100)
+        self.store.mark_sent(msgid="in", user_id=user, open_kfid="kf", external_userid="customer", send_time=100,
+                             customer_content="hi", reply_content="same", reply_source_message_id="out")
+        with self.store._connection:
+            self.store._connection.execute("UPDATE processed_message SET reply_source_message_id=NULL")
+            self.store._connection.execute("""INSERT INTO conversation_message(conversation_id,user_id,sender_type,message_type,content,source,source_message_id,send_status,occurred_at,created_at,updated_at)
+                SELECT conversation_id,user_id,sender_type,message_type,content,source,'legacy-reply:in',send_status,occurred_at,created_at,updated_at
+                FROM conversation_message WHERE source_message_id='out'""")
+        self.store.close()
+        self.store = MessageStore(self.path)
+        self.assertEqual(len(self.store.history(user)), 2)
+        self.assertEqual(self.store._connection.execute("SELECT reply_source_message_id FROM processed_message").fetchone()[0], "out")
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
         self.path = Path(self.tempdir.name) / "test.db"

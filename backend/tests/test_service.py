@@ -64,7 +64,7 @@ class FakeWeCom:
         if self.send_fail:
             raise RuntimeError("send failed")
         self.sent.append((open_kfid, external_userid, content))
-        return "reply-msgid"
+        return f"reply-msgid-{len(self.sent)}"
 
     async def batch_get_customers(
         self, external_userids: list[str]
@@ -90,9 +90,11 @@ class FakeLLM:
     def __init__(self, *, fail: bool = False) -> None:
         self.fail = fail
         self.questions: list[str] = []
+        self.histories: list[Any] = []
 
     async def answer(self, question: str, history: Any = ()) -> str:
         self.questions.append(question)
+        self.histories.append(list(history))
         if self.fail:
             raise LLMError("provider failed")
         return "你好，请问有什么可以帮你？"
@@ -125,7 +127,7 @@ class CustomerServiceProcessorTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
-        self.assertEqual(llm.questions, ["你好"])
+        self.assertEqual(llm.questions, ["[1970-01-01T00:02:03+00:00] 客户\n你好"])
         self.assertEqual(
             wecom.sent,
             [("wk-account", "customer", "你好，请问有什么可以帮你？\n---\n客服剩余回复次数4，约48小时后清空，回复任意消息重置。")],
@@ -170,7 +172,7 @@ class CustomerServiceProcessorTests(unittest.IsolatedAsyncioTestCase):
             )
         )
 
-        self.assertEqual(llm.questions, ["你好"])
+        self.assertEqual(llm.questions, ["[1970-01-01T00:02:03+00:00] 客户\n你好"])
         self.assertEqual(len(wecom.sent), 1)
         self.assertTrue(self.store.is_processed("customer-1"))
 
@@ -254,23 +256,101 @@ class CustomerServiceProcessorTests(unittest.IsolatedAsyncioTestCase):
     def test_profile_command_aliases_include_my_messages(self) -> None:
         self.assertIn("我的消息", PROFILE_COMMANDS)
 
-    async def test_batch_uses_one_quota_and_preserves_unanswered_message(self) -> None:
+    async def test_batch_combines_all_questions_with_timestamps_in_one_reply(self) -> None:
         wecom = FakeWeCom()
         template = wecom.sync_results[1].messages[0]
         wecom.sync_results[1].messages[:] = [
             {**template, "msgid": f"batch-{index}", "text": {"content": f"问题{index}"}}
-            for index in range(6)
+            for index in range(16)
         ]
         llm = FakeLLM()
         processor = CustomerServiceProcessor(wecom, llm, self.store)
         await processor.bootstrap()
         await processor.handle_event(CustomerServiceEvent("kf_msg_or_event", "token", "wk-account", 123))
-        self.assertEqual(len(wecom.sent), 5)
-        self.assertEqual(len(llm.questions), 5)
-        self.assertIn("客服剩余回复次数0", wecom.sent[-1][2])
-        self.assertTrue(self.store.is_processed("batch-5"))
-        self.assertIn("问题5", [message.content for message in self.store.history(1)])
+        self.assertEqual(len(wecom.sent), 1)
+        self.assertEqual(len(llm.questions), 1)
+        self.assertEqual(llm.questions[0], "\n\n".join(
+            f"[1970-01-01T00:02:03+00:00] 客户\n问题{index}" for index in range(16)
+        ))
+        self.assertEqual(llm.histories, [[]])
+        self.assertIn("客服剩余回复次数4", wecom.sent[-1][2])
+        self.assertTrue(all(self.store.is_processed(f"batch-{index}") for index in range(16)))
+        self.assertEqual(len(self.store.history(1, turns=20)), 17)
         self.assertEqual(self.store.get_cursor("wk-account"), "cursor-2")
+
+    async def test_combined_send_failure_retries_all_questions_without_losing_them(self) -> None:
+        wecom = FakeWeCom(send_fail=True)
+        template = wecom.sync_results[1].messages[0]
+        batch = [{**template, "msgid": f"retry-{i}", "text": {"content": f"问题{i}"}} for i in range(3)]
+        wecom.sync_results[1].messages[:] = batch
+        llm = FakeLLM()
+        processor = CustomerServiceProcessor(wecom, llm, self.store)
+        await processor.bootstrap()
+        with self.assertRaisesRegex(RuntimeError, "send failed"):
+            await processor.handle_event(CustomerServiceEvent("kf_msg_or_event", "token", "wk-account", 123))
+        self.assertFalse(any(self.store.is_processed(f"retry-{i}") for i in range(3)))
+        self.assertEqual(self.store.get_cursor("wk-account"), "cursor-1")
+        wecom.send_fail = False
+        wecom.sync_results.append(SyncResult(batch, "cursor-2", 1))
+        await processor.handle_event(CustomerServiceEvent("kf_msg_or_event", "token", "wk-account", 123))
+        self.assertEqual(llm.questions[0], llm.questions[1])
+        self.assertEqual(len(wecom.sent), 1)
+        wecom.sync_results.append(SyncResult(batch, "cursor-3", 1))
+        await processor.handle_event(CustomerServiceEvent("kf_msg_or_event", "token", "wk-account", 123))
+        self.assertEqual(len(wecom.sent), 1)
+
+    async def test_batch_orders_timestamps_and_deduplicates_inbound_ids(self) -> None:
+        wecom = FakeWeCom()
+        template = wecom.sync_results[1].messages[0]
+        earlier = {**template, "msgid": "early", "send_time": 100, "text": {"content": "先问价格"}}
+        later = {**template, "msgid": "late", "send_time": 123, "text": {"content": "再问配送"}}
+        wecom.sync_results[1].messages[:] = [later, earlier, later]
+        llm = FakeLLM()
+        processor = CustomerServiceProcessor(wecom, llm, self.store)
+        await processor.bootstrap()
+        await processor.handle_event(CustomerServiceEvent("kf_msg_or_event", "token", "wk-account", 123))
+        self.assertEqual(llm.questions, ["[1970-01-01T00:01:40+00:00] 客户\n先问价格\n\n[1970-01-01T00:02:03+00:00] 客户\n再问配送"])
+        self.assertEqual(len(wecom.sent), 1)
+        wecom.sync_results.append(SyncResult([later, earlier], "cursor-3", 1))
+        await processor.handle_event(CustomerServiceEvent("kf_msg_or_event", "token", "wk-account", 123))
+        self.assertEqual(len(wecom.sent), 1)
+
+    async def test_batch_history_includes_human_reply_and_isolates_customers(self) -> None:
+        user = self.store.get_or_create_customer("wk-account", "customer", seen_at=100)
+        self.store.mark_sent(msgid="previous", user_id=user, open_kfid="wk-account", external_userid="customer",
+            send_time=100, customer_content="旧问题", reply_content="旧回答", reply_source_message_id="old-reply")
+        manual, _ = self.store.create_admin_message(user_id=user, open_kfid="wk-account", content="人工说明",
+            operator_id="agent", request_id="manual")
+        self.store.complete_admin_message(manual.id, status="sent")
+        wecom = FakeWeCom()
+        wecom.sync_results[1].messages.append({**wecom.sync_results[1].messages[0], "msgid": "other-in", "external_userid": "other", "text": {"content": "其他客户的问题"}})
+        llm = FakeLLM()
+        processor = CustomerServiceProcessor(wecom, llm, self.store)
+        await processor.bootstrap()
+        await processor.handle_event(CustomerServiceEvent("kf_msg_or_event", "token", "wk-account", 123))
+        self.assertEqual(len(wecom.sent), 2)
+        self.assertEqual([message.content for message in llm.histories[0]], ["旧问题", "旧回答", "人工说明"])
+        self.assertEqual(llm.histories[0][-1].as_dict(), {"role": "assistant", "content": "[1970-01-01T00:02:03+00:00] 人工客服\n人工说明"})
+        self.assertEqual(llm.histories[1], [])
+        self.assertNotIn("其他客户", llm.questions[0])
+
+    async def test_admin_refresh_catches_up_without_sending_replies(self) -> None:
+        wecom = FakeWeCom()
+        llm = FakeLLM()
+        processor = CustomerServiceProcessor(wecom, llm, self.store)
+        await processor.bootstrap()
+        self.store.observe_customer_message("wk-account", "customer", "old", 1)
+        await processor.refresh_for_admin("customer")
+        self.assertEqual(wecom.sent, [])
+        self.assertEqual(llm.questions, [])
+        self.assertEqual(self.store.reply_budget("wk-account", "customer").received_at, 123)
+        self.assertTrue(self.store.is_processed("customer-1"))
+        self.assertEqual(self.store.get_cursor("wk-account"), "cursor-1")
+        # Replaying the same inbound data must not send a delayed AI reply.
+        wecom.sync_results.append(SyncResult([{"msgid": "customer-1", "origin": 3,
+            "external_userid": "customer", "send_time": 123, "msgtype": "text", "text": {"content": "你好"}}], "cursor-3", 1))
+        await processor.handle_event(CustomerServiceEvent("kf_msg_or_event", "token", "wk-account", 123))
+        self.assertEqual(wecom.sent, [])
 
     async def test_non_text_customer_message_resets_quota(self) -> None:
         wecom = FakeWeCom()

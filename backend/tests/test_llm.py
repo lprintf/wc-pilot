@@ -31,6 +31,7 @@ class OpenAICompatibleLLMTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(body["stream"])
             self.assertEqual(body["model"], "test-model")
             self.assertEqual(body["messages"][-1], {"role": "user", "content": "你好"})
+            self.assertEqual(body["messages"][1], {"role": "assistant", "content": "[1970-01-01T00:02:03+00:00] 人工客服\n欢迎咨询"})
             return httpx.Response(
                 200,
                 json={"choices": [{"message": {"content": "  你好，请问有什么可以帮你？  "}}]},
@@ -42,7 +43,7 @@ class OpenAICompatibleLLMTests(unittest.IsolatedAsyncioTestCase):
                 http_client=http,
             )
             result = await llm.answer(
-                " 你好 ", [ChatMessage("assistant", "欢迎咨询")]
+                " 你好 ", [ChatMessage("assistant", "欢迎咨询", 123, "人工客服")]
             )
 
         self.assertEqual(result, "你好，请问有什么可以帮你？")

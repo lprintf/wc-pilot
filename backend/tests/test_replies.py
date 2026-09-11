@@ -129,3 +129,14 @@ class ReplyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.store.reply_budget("legacy", "user").used, 2)
         self.store.observe_customer_message("legacy", "user", "legacy-in", 1000)
         self.assertEqual(self.store.reply_budget("legacy", "user").used, 2)
+
+    def test_refresh_counts_manual_send_after_previously_missed_inbound(self) -> None:
+        user = self.store.get_or_create_customer("kf", "customer", seen_at=1000)
+        message, _ = self.store.create_admin_message(user_id=user, open_kfid="kf", content="manual",
+            operator_id="agent", request_id="before-sync")
+        self.store.complete_admin_message(message.id, status="sent")
+        self.store.observe_customer_message("kf", "customer", "missed", 999)
+        self.store.reconcile_reply_usage("kf", "customer")
+        self.assertEqual(self.store.reply_budget("kf", "customer").used, 1)
+        self.store.reconcile_reply_usage("kf", "customer")
+        self.assertEqual(self.store.reply_budget("kf", "customer").used, 1)

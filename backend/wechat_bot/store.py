@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sqlite3
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from wechat_bot.llm import ChatMessage
@@ -82,6 +83,7 @@ class MessageStore:
         self._connection.row_factory = sqlite3.Row
         self._lock = threading.Lock()
         self._reply_locks: dict[str, asyncio.Lock] = {}
+        self._customer_locks: dict[tuple[str, str], asyncio.Lock] = {}
         with self._connection:
             self._connection.execute("PRAGMA journal_mode=WAL")
             self._connection.execute("PRAGMA foreign_keys=ON")
@@ -228,6 +230,15 @@ class MessageStore:
                 CREATE TABLE IF NOT EXISTS kf_received_message (
                     msgid TEXT PRIMARY KEY
                 );
+                CREATE TABLE IF NOT EXISTS customer_management (
+                    user_id INTEGER PRIMARY KEY REFERENCES app_user(id) ON DELETE CASCADE,
+                    nickname TEXT NOT NULL,
+                    gender INTEGER NOT NULL,
+                    notes TEXT NOT NULL DEFAULT '',
+                    tags TEXT NOT NULL DEFAULT '[]',
+                    updated_at INTEGER NOT NULL,
+                    operator_id TEXT NOT NULL
+                );
                 """
             )
             columns = {
@@ -246,6 +257,8 @@ class MessageStore:
                     "ALTER TABLE processed_message "
                     "ADD COLUMN conversation_id INTEGER REFERENCES conversation(id)"
                 )
+            if "reply_source_message_id" not in columns:
+                self._connection.execute("ALTER TABLE processed_message ADD COLUMN reply_source_message_id TEXT")
             self._connection.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_processed_user_time
@@ -284,6 +297,9 @@ class MessageStore:
     def reply_lock(self, open_kfid: str) -> asyncio.Lock:
         return self._reply_locks.setdefault(open_kfid, asyncio.Lock())
 
+    def customer_lock(self, open_kfid: str, external_userid: str) -> asyncio.Lock:
+        return self._customer_locks.setdefault((open_kfid, external_userid), asyncio.Lock())
+
     def observe_customer_message(self, open_kfid: str, external_userid: str, msgid: str, send_time: int) -> None:
         if not msgid or not external_userid or send_time <= 0:
             return
@@ -313,6 +329,20 @@ class MessageStore:
             self._connection.execute(
                 "UPDATE kf_reply_budget SET used=used+1 WHERE open_kfid=? AND external_userid=?",
                 (open_kfid, external_userid),
+            )
+
+    def reconcile_reply_usage(self, open_kfid: str, external_userid: str) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                """UPDATE kf_reply_budget SET used=MAX(used,
+                    (SELECT COUNT(*) FROM processed_message p WHERE p.open_kfid=kf_reply_budget.open_kfid
+                     AND p.external_userid=kf_reply_budget.external_userid AND p.status='sent'
+                     AND p.created_at>=kf_reply_budget.received_at)
+                    + (SELECT COUNT(*) FROM conversation_message m JOIN conversation c ON c.id=m.conversation_id
+                       JOIN user_identity i ON i.user_id=m.user_id AND i.subject_id=c.subject_id AND i.provider='wecom_kf'
+                       WHERE i.subject_id=kf_reply_budget.open_kfid AND i.external_id=kf_reply_budget.external_userid
+                         AND m.sender_type='human_agent' AND m.send_status='sent' AND m.updated_at>=kf_reply_budget.received_at))
+                    WHERE open_kfid=? AND external_userid=?""", (open_kfid, external_userid),
             )
 
     def exhaust_reply_budget(self, open_kfid: str, external_userid: str, *, expired: bool) -> None:
@@ -782,6 +812,21 @@ class MessageStore:
             reply_source_message_id,
         )
 
+    def mark_batch_sent(
+        self, *, messages: list[tuple[str, int, str]], user_id: int,
+        open_kfid: str, external_userid: str, reply_content: str,
+        reply_source_message_id: str,
+    ) -> None:
+        """Save all inbound messages and the single reply in one transaction."""
+        with self._lock, self._connection:
+            for index, (msgid, send_time, content) in enumerate(messages):
+                is_last = index == len(messages) - 1
+                self._record_locked(
+                    msgid, user_id, open_kfid, external_userid, send_time, content,
+                    reply_content if is_last else "", "sent" if is_last else "ignored",
+                    reply_source_message_id if is_last else None,
+                )
+
     def mark_ignored(
         self,
         *,
@@ -809,11 +854,11 @@ class MessageStore:
         self._record(msgid, user_id, open_kfid, external_userid, send_time,
                      customer_content, "", "ignored")
 
-    def history(self, user_id: int, *, turns: int = 6) -> list[ChatMessage]:
+    def history(self, user_id: int, *, turns: int = 6, timestamped: bool = False) -> list[ChatMessage]:
         with self._lock:
             rows = self._connection.execute(
                 """
-                SELECT sender_type, content
+                SELECT sender_type, content, occurred_at
                 FROM conversation_message
                 WHERE user_id = ? AND send_status = 'sent'
                 ORDER BY occurred_at DESC, id DESC
@@ -824,7 +869,11 @@ class MessageStore:
         history: list[ChatMessage] = []
         for row in reversed(rows):
             role = "user" if str(row["sender_type"]) == "user" else "assistant"
-            history.append(ChatMessage(role, str(row["content"])))
+            history.append(ChatMessage(
+                role, str(row["content"]),
+                int(row["occurred_at"]) if timestamped else None,
+                {"user": "客户", "human_agent": "人工客服", "ai": "AI"}.get(str(row["sender_type"]), "系统") if timestamped else "",
+            ))
         return history
 
     def _record(
@@ -840,59 +889,77 @@ class MessageStore:
         reply_source_message_id: str | None = None,
     ) -> None:
         with self._lock, self._connection:
-            recorded_at = int(time.time())
-            conversation_id = self._get_or_create_conversation_locked(
-                user_id=user_id,
-                open_kfid=open_kfid,
-                occurred_at=send_time if send_time > 0 else recorded_at,
-            )
+            self._record_locked(msgid, user_id, open_kfid, external_userid, send_time,
+                                customer_content, reply_content, status, reply_source_message_id)
+
+    def _record_locked(
+        self,
+        msgid: str,
+        user_id: int,
+        open_kfid: str,
+        external_userid: str,
+        send_time: int,
+        customer_content: str,
+        reply_content: str,
+        status: str,
+        reply_source_message_id: str | None = None,
+    ) -> None:
+        recorded_at = int(time.time())
+        conversation_id = self._get_or_create_conversation_locked(
+            user_id=user_id,
+            open_kfid=open_kfid,
+            occurred_at=send_time if send_time > 0 else recorded_at,
+        )
+        inserted = self._connection.execute(
+            """
+            INSERT OR IGNORE INTO processed_message(
+                msgid, user_id, conversation_id, open_kfid,
+                external_userid, send_time,
+                customer_content, reply_content, status, created_at, reply_source_message_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                msgid,
+                user_id,
+                conversation_id,
+                open_kfid,
+                external_userid,
+                send_time,
+                customer_content,
+                reply_content,
+                status,
+                recorded_at,
+                reply_source_message_id,
+            ),
+        ).rowcount
+        if not inserted:
+            return
+        self._connection.execute(
+            """
+            UPDATE conversation
+            SET updated_at = MAX(updated_at, ?)
+            WHERE id = ?
+            """,
+            (recorded_at, conversation_id),
+        )
+        if customer_content:
             self._connection.execute(
-                """
-                INSERT OR IGNORE INTO processed_message(
-                    msgid, user_id, conversation_id, open_kfid,
-                    external_userid, send_time,
-                    customer_content, reply_content, status, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    msgid,
-                    user_id,
-                    conversation_id,
-                    open_kfid,
-                    external_userid,
-                    send_time,
-                    customer_content,
-                    reply_content,
-                    status,
-                    recorded_at,
-                ),
+                """INSERT OR IGNORE INTO conversation_message(
+                   conversation_id, user_id, sender_type, message_type, content,
+                   source, source_message_id, send_status, occurred_at, created_at, updated_at
+                ) VALUES (?, ?, 'user', 'text', ?, 'wechat_kf', ?, 'sent', ?, ?, ?)""",
+                (conversation_id, user_id, customer_content, msgid,
+                 send_time if send_time > 0 else recorded_at, recorded_at, recorded_at),
             )
+        if status == "sent":
             self._connection.execute(
-                """
-                UPDATE conversation
-                SET updated_at = MAX(updated_at, ?)
-                WHERE id = ?
-                """,
-                (recorded_at, conversation_id),
+                """INSERT OR IGNORE INTO conversation_message(
+                   conversation_id, user_id, sender_type, message_type, content,
+                   source, source_message_id, send_status, occurred_at, created_at, updated_at
+                ) VALUES (?, ?, 'ai', 'text', ?, 'llm', ?, 'sent', ?, ?, ?)""",
+                (conversation_id, user_id, reply_content, reply_source_message_id or f"legacy-reply:{msgid}",
+                 recorded_at, recorded_at, recorded_at),
             )
-            if customer_content:
-                self._connection.execute(
-                    """INSERT OR IGNORE INTO conversation_message(
-                       conversation_id, user_id, sender_type, message_type, content,
-                       source, source_message_id, send_status, occurred_at, created_at, updated_at
-                    ) VALUES (?, ?, 'user', 'text', ?, 'wechat_kf', ?, 'sent', ?, ?, ?)""",
-                    (conversation_id, user_id, customer_content, msgid,
-                     send_time if send_time > 0 else recorded_at, recorded_at, recorded_at),
-                )
-            if status == "sent":
-                self._connection.execute(
-                    """INSERT OR IGNORE INTO conversation_message(
-                       conversation_id, user_id, sender_type, message_type, content,
-                       source, source_message_id, send_status, occurred_at, created_at, updated_at
-                    ) VALUES (?, ?, 'ai', 'text', ?, 'llm', ?, 'sent', ?, ?, ?)""",
-                    (conversation_id, user_id, reply_content, reply_source_message_id or f"legacy-reply:{msgid}",
-                     recorded_at, recorded_at, recorded_at),
-                )
 
     def _get_or_create_conversation_locked(
         self, *, user_id: int, open_kfid: str, occurred_at: int
@@ -960,7 +1027,7 @@ class MessageStore:
     def _backfill_conversation_messages_locked(self) -> None:
         rows = self._connection.execute(
             """SELECT msgid, user_id, conversation_id, customer_content,
-                      reply_content, send_time, created_at
+                      reply_content, send_time, created_at, reply_source_message_id
                FROM processed_message
                WHERE status = 'sent' AND user_id IS NOT NULL
                  AND conversation_id IS NOT NULL"""
@@ -971,6 +1038,28 @@ class MessageStore:
             user_id = int(row["user_id"])
             send_time = int(row["send_time"])
             created_at = int(row["created_at"])
+            reply_id = row["reply_source_message_id"]
+            if not reply_id:
+                # Old versions stored the platform ID only in conversation_message.
+                # Recover it only when timestamp, body and conversation identify a
+                # single real delivery; never collapse distinct actual sends.
+                matches = self._connection.execute(
+                    """SELECT source_message_id FROM conversation_message
+                       WHERE conversation_id=? AND user_id=? AND sender_type='ai'
+                         AND source='llm' AND content=? AND occurred_at=?
+                         AND source_message_id NOT LIKE 'legacy-reply:%'""",
+                    (conversation_id, user_id, row["reply_content"], created_at),
+                ).fetchall()
+                if len(matches) == 1:
+                    reply_id = str(matches[0]["source_message_id"])
+                    self._connection.execute("UPDATE processed_message SET reply_source_message_id=? WHERE msgid=?", (reply_id, msgid))
+            if reply_id:
+                self._connection.execute(
+                    """DELETE FROM conversation_message WHERE source='llm'
+                       AND source_message_id=? AND conversation_id=? AND user_id=?
+                       AND content=? AND occurred_at=?""",
+                    (f"legacy-reply:{msgid}", conversation_id, user_id, row["reply_content"], created_at),
+                )
             self._connection.execute(
                 """INSERT OR IGNORE INTO conversation_message(
                    conversation_id, user_id, sender_type, message_type, content,
@@ -984,7 +1073,7 @@ class MessageStore:
                    conversation_id, user_id, sender_type, message_type, content,
                    source, source_message_id, send_status, occurred_at, created_at, updated_at
                 ) VALUES (?, ?, 'ai', 'text', ?, 'llm', ?, 'sent', ?, ?, ?)""",
-                (conversation_id, user_id, str(row["reply_content"]), f"legacy-reply:{msgid}",
+                (conversation_id, user_id, str(row["reply_content"]), reply_id or f"legacy-reply:{msgid}",
                  created_at, created_at, created_at),
             )
 
@@ -1000,7 +1089,7 @@ class MessageStore:
             order = "unread_count DESC, last_active_at DESC, u.id DESC"
         with self._lock:
             rows = self._connection.execute(
-                f"""SELECT u.id, p.nickname, p.avatar_url,
+                f"""SELECT u.id, COALESCE(cmgt.nickname, p.nickname) AS nickname, p.avatar_url,
                     COALESCE((SELECT cm.content FROM conversation_message cm
                       WHERE cm.user_id=u.id AND cm.send_status='sent'
                       ORDER BY cm.occurred_at DESC, cm.id DESC LIMIT 1), '') AS preview,
@@ -1010,15 +1099,17 @@ class MessageStore:
                       WHERE cm.user_id=u.id AND cm.sender_type='user' AND cm.send_status='sent'
                         AND cm.id > COALESCE((SELECT last_read_message_id FROM admin_user_state s WHERE s.user_id=u.id),0)),0) AS unread_count
                     FROM app_user u JOIN customer_profile p ON p.user_id=u.id
+                    LEFT JOIN customer_management cmgt ON cmgt.user_id=u.id
                     JOIN user_identity i ON i.user_id=u.id AND i.provider='wecom_kf' AND i.subject_id=?
-                    WHERE (?='' OR p.nickname LIKE ? OR CAST(u.id AS TEXT) LIKE ?)
+                    WHERE (?='' OR COALESCE(cmgt.nickname, p.nickname) LIKE ? OR CAST(u.id AS TEXT) LIKE ?)
                     ORDER BY {order} LIMIT ? OFFSET ?""",
                 (open_kfid, search.strip(), pattern, pattern, page_size, (page - 1) * page_size),
             ).fetchall()
             total = int(self._connection.execute(
                 """SELECT COUNT(1) FROM app_user u JOIN customer_profile p ON p.user_id=u.id
+                   LEFT JOIN customer_management cmgt ON cmgt.user_id=u.id
                    JOIN user_identity i ON i.user_id=u.id AND i.provider='wecom_kf' AND i.subject_id=?
-                   WHERE (?='' OR p.nickname LIKE ? OR CAST(u.id AS TEXT) LIKE ?)""",
+                   WHERE (?='' OR COALESCE(cmgt.nickname, p.nickname) LIKE ? OR CAST(u.id AS TEXT) LIKE ?)""",
                 (open_kfid, search.strip(), pattern, pattern),
             ).fetchone()[0])
         return [AdminUserSummary(int(r["id"]), str(r["nickname"]), str(r["avatar_url"]),
@@ -1030,7 +1121,45 @@ class MessageStore:
                 """SELECT 1 FROM user_identity WHERE user_id=? AND provider='wecom_kf' AND subject_id=?""",
                 (user_id, open_kfid),
             ).fetchone()
-        return self.get_customer_profile(user_id) if row else None
+        profile = self.get_customer_profile(user_id) if row else None
+        if profile is not None:
+            with self._lock:
+                override = self._connection.execute("SELECT nickname, gender FROM customer_management WHERE user_id=?", (user_id,)).fetchone()
+            if override:
+                profile = replace(profile, nickname=str(override["nickname"]), gender=int(override["gender"]))
+        return profile
+
+    def customer_management(self, user_id: int) -> dict[str, object]:
+        with self._lock:
+            row = self._connection.execute("SELECT notes, tags FROM customer_management WHERE user_id=?", (user_id,)).fetchone()
+        return {"notes": str(row["notes"]), "tags": json.loads(row["tags"])} if row else {"notes": "", "tags": []}
+
+    def update_managed_customer(self, user_id: int, open_kfid: str, *, nickname: str, gender: int, notes: str, tags: list[str], operator_id: str) -> None:
+        with self._lock, self._connection:
+            if not self._connection.execute("SELECT 1 FROM user_identity WHERE user_id=? AND subject_id=? AND provider='wecom_kf'", (user_id, open_kfid)).fetchone():
+                raise LookupError("user not found")
+            self._connection.execute(
+                """INSERT INTO customer_management(user_id,nickname,gender,notes,tags,updated_at,operator_id)
+                   VALUES (?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET
+                   nickname=excluded.nickname,gender=excluded.gender,notes=excluded.notes,tags=excluded.tags,
+                   updated_at=excluded.updated_at,operator_id=excluded.operator_id""",
+                (user_id, nickname, gender, notes, json.dumps(tags, ensure_ascii=False), int(time.time()), operator_id),
+            )
+
+    def delete_managed_customer(self, user_id: int, open_kfid: str) -> None:
+        with self._lock, self._connection:
+            identities = self._connection.execute("SELECT provider,subject_id FROM user_identity WHERE user_id=?", (user_id,)).fetchall()
+            if not any(row["provider"] == "wecom_kf" and row["subject_id"] == open_kfid for row in identities):
+                raise LookupError("user not found")
+            if any(row["provider"] != "wecom_kf" or row["subject_id"] != open_kfid for row in identities):
+                raise ValueError("客户关联其他账号，暂不支持删除")
+            if self._connection.execute("SELECT 1 FROM conversation_message WHERE user_id=? AND send_status='pending'", (user_id,)).fetchone():
+                raise ValueError("客户有正在发送的消息，请稍后再删除")
+            # Keep content-free deduplication and quota records: deletion must not
+            # make old callbacks resend or create extra WeChat reply capacity.
+            self._connection.execute("INSERT OR IGNORE INTO kf_received_message SELECT msgid FROM processed_message WHERE user_id=?", (user_id,))
+            self._connection.execute("UPDATE processed_message SET user_id=NULL, conversation_id=NULL, customer_content='', reply_content='', status='ignored' WHERE user_id=?", (user_id,))
+            self._connection.execute("DELETE FROM app_user WHERE id=?", (user_id,))
 
     def get_customer_external_userid(self, user_id: int, open_kfid: str) -> str | None:
         with self._lock:
