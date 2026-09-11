@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import base64
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from pathlib import Path
 
 import httpx
@@ -28,7 +28,7 @@ class AdminEndpointTests(unittest.IsolatedAsyncioTestCase):
         self.store.consume_reply("wk-account", "external-secret")
         self.sent: list[tuple[str, str, str]] = []
         self.wecom = SimpleNamespace(send_text=self.send_text)
-        self.processor = SimpleNamespace(managed_open_kfid="wk-account")
+        self.processor = SimpleNamespace(managed_open_kfid="wk-account", refresh_for_admin=AsyncMock())
         self.settings = SimpleNamespace(admin_configured=True, admin_username="agent", admin_password="pass")
         self.app = create_app()
         self.app.state.runtime = SimpleNamespace(store=self.store, processor=self.processor, settings=self.settings, wecom=self.wecom)
@@ -109,3 +109,16 @@ class AdminEndpointTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(retry.status_code, 200)
         self.assertEqual(len(self.sent), 1)
         self.assertIn("客服剩余回复次数4", self.sent[0][2])
+
+    async def test_stale_local_window_refreshes_before_sending(self) -> None:
+        async def refresh(_external_userid):
+            self.store.observe_customer_message("wk-account", "external-secret", "missed", 200000)
+        self.processor.refresh_for_admin.side_effect = refresh
+        with patch("wechat_bot.replies.time.time", return_value=200000):
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app), base_url="https://example.test") as client:
+                result = await client.post(f"/api/admin/users/{self.user_id}/messages",
+                    headers={**self.headers(), "x-requested-with": "XMLHttpRequest"},
+                    json={"content": "reply", "request_id": "refresh-test"})
+        self.assertEqual(result.status_code, 200)
+        self.processor.refresh_for_admin.assert_awaited_once_with("external-secret")
+        self.assertEqual(len(self.sent), 1)

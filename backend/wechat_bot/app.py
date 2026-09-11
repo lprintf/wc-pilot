@@ -377,7 +377,74 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         profile = runtime.store.get_admin_user(user_id, runtime.processor.managed_open_kfid)
         if profile is None:
             return admin_error("user_not_found", "用户不存在", 404)
-        return JSONResponse({"user": {"id": profile.user_id, "nickname": profile.nickname, "avatar_url": profile.avatar_url if profile.avatar_url.startswith("https://") else "", "gender": profile.gender, "first_seen_at": timestamp_json(profile.first_seen_at), "last_seen_at": timestamp_json(profile.last_seen_at)}})
+        return JSONResponse({"user": {"id": profile.user_id, "nickname": profile.nickname, "avatar_url": profile.avatar_url if profile.avatar_url.startswith("https://") else "", "gender": profile.gender, "first_seen_at": timestamp_json(profile.first_seen_at), "last_seen_at": timestamp_json(profile.last_seen_at), **runtime.store.customer_management(user_id)}}, headers={"Cache-Control": "no-store"})
+
+    @app.patch("/api/admin/users/{user_id}")
+    async def admin_update_customer(request: Request, user_id: int, body: dict[str, object] = Body(...)) -> Response:
+        denied = require_admin(request)
+        if denied is not None:
+            return denied
+        if request.headers.get("x-requested-with") != "XMLHttpRequest":
+            return admin_error("csrf_required", "修改客户需要 CSRF 请求头", 403)
+        nickname, gender, notes, tags = (body.get(key) for key in ("nickname", "gender", "notes", "tags"))
+        if not isinstance(nickname, str) or len(nickname.strip()) > 100:
+            return admin_error("invalid_request", "昵称最多 100 个字符", 400)
+        if type(gender) is not int or gender not in (0, 1, 2):
+            return admin_error("invalid_request", "性别值无效", 400)
+        if not isinstance(notes, str) or len(notes) > 2000:
+            return admin_error("invalid_request", "备注最多 2000 个字符", 400)
+        if not isinstance(tags, list) or len(tags) > 10 or any(not isinstance(tag, str) or not tag.strip() or len(tag.strip()) > 20 for tag in tags):
+            return admin_error("invalid_request", "最多 10 个标签，每个标签 1–20 个字符", 400)
+        runtime: Runtime = request.app.state.runtime
+        try:
+            runtime.store.update_managed_customer(user_id, runtime.processor.managed_open_kfid,
+                nickname=nickname.strip(), gender=gender, notes=notes.strip(),
+                tags=list(dict.fromkeys(tag.strip() for tag in tags)), operator_id=runtime.settings.admin_username)
+        except LookupError:
+            return admin_error("user_not_found", "用户不存在", 404)
+        LOGGER.info("admin customer updated: user_id=%s", user_id)
+        return await admin_user(request, user_id)
+
+    @app.delete("/api/admin/users/{user_id}")
+    async def admin_delete_customer(request: Request, user_id: int, body: dict[str, object] = Body(...)) -> Response:
+        denied = require_admin(request)
+        if denied is not None:
+            return denied
+        if request.headers.get("x-requested-with") != "XMLHttpRequest":
+            return admin_error("csrf_required", "删除客户需要 CSRF 请求头", 403)
+        if type(body.get("confirm_user_id")) is not int or body["confirm_user_id"] != user_id:
+            return admin_error("confirmation_required", "请确认要删除的客户 ID", 400)
+        runtime: Runtime = request.app.state.runtime
+        open_kfid = runtime.processor.managed_open_kfid
+        external_userid = runtime.store.get_customer_external_userid(user_id, open_kfid)
+        if external_userid is None:
+            return admin_error("user_not_found", "用户不存在", 404)
+        async with runtime.store.customer_lock(open_kfid, external_userid):
+            try:
+                runtime.store.delete_managed_customer(user_id, open_kfid)
+            except LookupError:
+                return admin_error("user_not_found", "用户不存在", 404)
+            except ValueError as exc:
+                return admin_error("customer_busy", str(exc), 409)
+        LOGGER.info("admin customer deleted: user_id=%s", user_id)
+        return Response(status_code=204)
+
+    @app.get("/api/admin/users/{user_id}/identity")
+    async def admin_customer_identity(request: Request, user_id: int) -> Response:
+        denied = require_admin(request)
+        if denied is not None:
+            return denied
+        runtime: Runtime = request.app.state.runtime
+        open_kfid = runtime.processor.managed_open_kfid
+        if not open_kfid:
+            return admin_error("service_not_ready", "客服账号尚未就绪", 503, retryable=True)
+        external_userid = runtime.store.get_customer_external_userid(user_id, open_kfid)
+        if external_userid is None:
+            return admin_error("user_not_found", "用户不存在", 404)
+        return JSONResponse(
+            {"user_id": user_id, "open_kfid": open_kfid, "external_userid": external_userid},
+            headers={"Cache-Control": "no-store"},
+        )
 
     @app.get("/api/admin/users/{user_id}/conversation")
     async def admin_conversation(request: Request, user_id: int, before_id: int | None = Query(None, ge=1), limit: int = Query(50, ge=1, le=100)) -> Response:
@@ -437,6 +504,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             runtime.store.complete_admin_message(message.id, status="failed", error_message="user_unavailable")
             return admin_error("user_unavailable", "用户当前不可发送", 409, retryable=True)
         try:
+            try:
+                runtime.store.reply_budget(open_kfid, external_userid).footer()
+            except ReplyUnavailable:
+                # Local state may lag behind WeChat when a callback was missed.
+                await runtime.processor.refresh_for_admin(external_userid)
             source_message_id = await send_reply(runtime.wecom, runtime.store, open_kfid, external_userid, message.content)
         except ReplyUnavailable as exc:
             upstream = exc.__cause__ if isinstance(exc.__cause__, WeComAPIError) else None

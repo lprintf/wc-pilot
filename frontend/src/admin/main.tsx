@@ -5,6 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { api, formatTime, Message, User } from "../shared/api"
 import "../shared/styles.css"
 import "./style.css"
+import { Avatar, Customers } from "./customers"
 
 const client = new QueryClient()
 const senderLabel: Record<string, string> = { user: "用户", customer: "用户", ai: "AI", assistant: "AI", human_agent: "人工客服", system: "系统" }
@@ -34,5 +35,12 @@ function Conversation({ userId }: { userId: number | null }) {
 
 function Info({ userId }: { userId: number|null }) { const query=useQuery({enabled:userId!==null,queryKey:["user",userId],queryFn:()=>api<{user:User & {gender:number;first_seen_at:string;last_seen_at:string}}>(`/api/admin/users/${userId}`)}); if(userId===null)return <aside className="panel info empty">用户信息</aside>; if(query.isLoading)return <aside className="panel info">加载中…</aside>; if(query.error)return <aside className="panel info error">{query.error.message}</aside>; const u=query.data!.user; return <aside className="panel info"><div className="large-avatar">{u.nickname.slice(0,1)||"微"}</div><h2>{u.nickname||"未命名用户"}</h2><dl><dt>内部用户 ID</dt><dd>{u.id}</dd><dt>首次出现</dt><dd>{formatTime(u.first_seen_at)}</dd><dt>最近活跃</dt><dd>{formatTime(u.last_seen_at)}</dd><dt>性别</dt><dd>{u.gender===1?"男":u.gender===2?"女":"未知"}</dd></dl></aside> }
 
-function App(){const [selected,setSelected]=useState<number|null>(null);return <main className="admin-app"><Users selected={selected} onSelect={setSelected}/><Conversation userId={selected}/><Info userId={selected}/></main>}
+function App() {
+  const [selected, setSelected] = useState<number | null>(null)
+  const [view, setView] = useState<"conversations" | "customers">("conversations")
+  function openConversation(id: number) { setSelected(id); setView("conversations") }
+  return <div className="admin-shell"><nav className="admin-navigation" aria-label="后台导航"><strong>客服后台</strong><button aria-current={view === "conversations" ? "page" : undefined} onClick={() => setView("conversations")}>会话工作台</button><button aria-current={view === "customers" ? "page" : undefined} onClick={() => { setSelected(null); setView("customers") }}>客户管理</button></nav>
+    {view === "customers" ? <Customers onOpen={openConversation}/> : <main className="admin-app"><Users selected={selected} onSelect={setSelected}/><Conversation key={selected} userId={selected}/><Info userId={selected}/></main>}
+  </div>
+}
 createRoot(document.getElementById("root")!).render(<StrictMode><QueryClientProvider client={client}><App/></QueryClientProvider></StrictMode>)
