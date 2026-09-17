@@ -4,6 +4,29 @@
 
 容器运行后提供以下端点：
 
+## LangGraph 对话编排
+
+消息到达后不再直接调用 LLM，而是进入 LangGraph 有状态图：
+
+```
+START -> load_conversation -> detect_intent -> route_intent
+  -> greeting     (welcome_customer)
+  -> capabilities (describe_capabilities)
+  -> knowledge_qa (retrieve_knowledge -> answer_with_kb)
+  -> lead_gen / after_sales (start_discovery -> collect_business_facts)
+  -> business_discovery (collect_business_facts -> estimate_cost_feasibility)
+  -> human_handoff (escalate_to_human)
+  -> profile (login link)
+  -> other (finalize_reply)
+  -> END
+```
+
+意图识别除 `个人中心/我的信息/我的消息/查看记录` 硬编码外，全部交给 LLM 分类。多轮业务信息采集（行业、渠道、日咨
+询量、痛点、目标）通过 AsyncSqliteSaver checkpoint 跨轮持久化，Admin 后台可查看进度和估算结果。
+
+知识库 MD 文件位于 `backend/knowledge/*.md`，启动时自动索引。
+Admin 后台新增 `GET /api/admin/logs?lines=200&level=INFO` 日志查看接口。
+
 - `GET /health/live`
 - `GET /health/ready`
 - `GET|POST /wecom/kf/callback`

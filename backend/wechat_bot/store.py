@@ -273,6 +273,7 @@ class MessageStore:
             )
             self._backfill_conversations_locked()
             self._backfill_conversation_messages_locked()
+            self._migrate_graph_state_columns_locked()
             # Seed existing installations once, including ignored non-text messages.
             self._connection.execute("INSERT OR IGNORE INTO kf_received_message SELECT msgid FROM processed_message")
             self._connection.execute(
@@ -853,6 +854,98 @@ class MessageStore:
     ) -> None:
         self._record(msgid, user_id, open_kfid, external_userid, send_time,
                      customer_content, "", "ignored")
+
+    def get_or_create_conversation(self, user_id: int, open_kfid: str) -> int:
+        """Return the stable conversation id for a user/kf pair."""
+        import time
+        with self._lock:
+            return self._get_or_create_conversation_locked(
+                user_id=user_id, open_kfid=open_kfid, occurred_at=int(time.time())
+            )
+
+    def _migrate_graph_state_columns_locked(self) -> None:
+        """Add graph state columns to conversation table if they dont exist."""
+        for col, col_type in [
+            ("latest_intent", "TEXT"),
+            ("scenario", "TEXT"),
+            ("business_facts_json", "TEXT"),
+            ("discovery_step", "INTEGER"),
+            ("estimate_json", "TEXT"),
+        ]:
+            try:
+                self._connection.execute(
+                    f"ALTER TABLE conversation ADD COLUMN {col} {col_type}"
+                )
+            except Exception:
+                pass
+
+    def update_conversation_graph_state(
+        self, conversation_id: int, *,
+        intent: str = "",
+        scenario: str = "",
+        business_facts: dict | None = None,
+        discovery_step: int | None = None,
+        estimate: dict | None = None,
+    ) -> None:
+        """Persist graph-derived state on the conversation row."""
+        import json
+        import time
+        updates: list[str] = []
+        params: list[object] = []
+        if intent:
+            updates.append("latest_intent=?")
+            params.append(intent)
+        if scenario:
+            updates.append("scenario=?")
+            params.append(scenario)
+        if business_facts is not None:
+            updates.append("business_facts_json=?")
+            params.append(json.dumps(business_facts, ensure_ascii=False))
+        if discovery_step is not None:
+            updates.append("discovery_step=?")
+            params.append(discovery_step)
+        if estimate is not None:
+            updates.append("estimate_json=?")
+            params.append(json.dumps(estimate, ensure_ascii=False))
+        if not updates:
+            return
+        params.append(conversation_id)
+        with self._lock:
+            self._connection.execute(
+                f"UPDATE conversation SET {','.join(updates)}, updated_at=? WHERE id=?",
+                (*params, int(time.time()), conversation_id),
+            )
+
+    def get_conversation_graph_state(self, conversation_id: int) -> dict[str, object]:
+        """Return graph-derived state for a conversation (admin display)."""
+        import json
+        with self._lock:
+            row = self._connection.execute(
+                """SELECT latest_intent, scenario, business_facts_json,
+                          discovery_step, estimate_json
+                   FROM conversation WHERE id=?""",
+                (conversation_id,),
+            ).fetchone()
+        if row is None:
+            return {}
+        result: dict[str, object] = {}
+        if row["latest_intent"]:
+            result["intent"] = row["latest_intent"]
+        if row["scenario"]:
+            result["scenario"] = row["scenario"]
+        if row["business_facts_json"]:
+            try:
+                result["business_facts"] = json.loads(row["business_facts_json"])
+            except Exception:
+                pass
+        if row["discovery_step"] is not None:
+            result["discovery_step"] = row["discovery_step"]
+        if row["estimate_json"]:
+            try:
+                result["estimate"] = json.loads(row["estimate_json"])
+            except Exception:
+                pass
+        return result
 
     def history(self, user_id: int, *, turns: int = 6, timestamped: bool = False) -> list[ChatMessage]:
         with self._lock:

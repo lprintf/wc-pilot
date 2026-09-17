@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import pathlib
+
 import asyncio
 import base64
 import binascii
+import aiosqlite
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 import logging
@@ -21,6 +25,8 @@ from wechat_bot.callback import (
     parse_callback_event,
 )
 from wechat_bot.config import Settings
+from wechat_bot.graph.graph import build_graph
+from wechat_bot.graph.knowledge import KnowledgeIndex
 from wechat_bot.crypto import CallbackCryptoError, WeComCallbackCrypto
 from wechat_bot.llm import OpenAICompatibleLLM
 from wechat_bot.service import CustomerServiceProcessor
@@ -42,13 +48,23 @@ class Runtime:
         self.auth = AuthManager(self.store, settings.public_base_url)
         self.wecom = WeComClient(settings.corp_id, settings.app_agent_secret)
         self.llm = OpenAICompatibleLLM(settings.llm)
-        self.processor = CustomerServiceProcessor(
-            self.wecom,
-            self.llm,
-            self.store,
-            settings.open_kfid,
-            self.auth,
+        self.knowledge_index = KnowledgeIndex(
+            settings.database_path.with_name("knowledge.db")
         )
+        checkpoint_path = settings.database_path.with_name("graph_checkpoint.db")
+        self._checkpoint_connection = aiosqlite.connect(str(checkpoint_path))
+        self._checkpointer = AsyncSqliteSaver(self._checkpoint_connection)
+        self.graph = build_graph(
+            knowledge_index=self.knowledge_index,
+            llm_client=self.llm,
+            checkpointer=self._checkpointer,
+        )
+        self.processor = CustomerServiceProcessor(
+            self.wecom, self.llm, self.store,
+            settings.open_kfid, self.auth,
+            graph=self.graph,
+        )
+
         self.crypto: WeComCallbackCrypto | None = None
         self._config_errors = settings.callback_config_errors()
         self._initialization_error = ""
@@ -72,6 +88,11 @@ class Runtime:
         return not self.errors and bool(self.processor.managed_open_kfid)
 
     async def start(self) -> None:
+        try:
+            chunk_count = self.knowledge_index.reindex()
+            LOGGER.info("knowledge index ready: chunks=%d", chunk_count)
+        except Exception:
+            LOGGER.warning("knowledge index reindex failed; continuing without KB", exc_info=True)
         if not await self._initialize():
             self._initialization_task = asyncio.create_task(self._retry_initialization())
 
@@ -125,13 +146,31 @@ class Runtime:
                 task.cancel()
         await self.llm.aclose()
         await self.wecom.aclose()
+        self.knowledge_index.close()
+        await self._checkpoint_connection.close()
         self.store.close()
+
+
+def _setup_file_logging(log_dir: pathlib.Path) -> None:
+    """Write INFO+ logs to a file for the admin log viewer."""
+    log_dir.mkdir(parents=True, exist_ok=True)
+    h = logging.FileHandler(str(log_dir / "wechat-bot.log"), encoding="utf-8")
+    h.setLevel(logging.INFO)
+    h.setFormatter(logging.Formatter(
+        "%(asctime)s [%(name)s] %(levelname)s %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    ))
+    root = logging.getLogger()
+    root.addHandler(h)
+    root.setLevel(logging.INFO)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        runtime = Runtime(settings or Settings.load())
+        resolved_settings = settings or Settings.load()
+        _setup_file_logging(resolved_settings.database_path.parent / "logs")
+        runtime = Runtime(resolved_settings)
         app.state.runtime = runtime
         await runtime.start()
         try:
@@ -359,7 +398,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not runtime.processor.managed_open_kfid:
             return admin_error("service_not_ready", "客服账号尚未就绪", 503, retryable=True)
         users, total = runtime.store.list_admin_users(runtime.processor.managed_open_kfid, search=q, page=page, page_size=page_size, sort=sort)
-        return JSONResponse({"users": [{"id": u.id, "nickname": u.nickname, "avatar_url": u.avatar_url if u.avatar_url.startswith("https://") else "", "last_message_preview": u.last_message_preview, "last_active_at": timestamp_json(u.last_active_at), "unread_count": u.unread_count} for u in users], "page": page, "page_size": page_size, "total": total})
+        results = []
+        for u in users:
+            convs = runtime.store.list_conversations(u.id)
+            gs = runtime.store.get_conversation_graph_state(convs[0].id) if convs else {}
+            results.append({
+                "id": u.id, "nickname": u.nickname,
+                "avatar_url": u.avatar_url if u.avatar_url.startswith("https://") else "",
+                "last_message_preview": u.last_message_preview,
+                "last_active_at": timestamp_json(u.last_active_at),
+                "unread_count": u.unread_count,
+                "latest_intent": gs.get("intent", ""),
+                "discovery_step": gs.get("discovery_step"),
+                "scenario": gs.get("scenario", ""),
+            })
+        return JSONResponse({"users": results, "page": page, "page_size": page_size, "total": total})
 
     @app.get("/api/admin/session")
     async def admin_session(request: Request) -> Response:
@@ -367,6 +420,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if denied is not None:
             return denied
         return Response(status_code=204)
+
+    @app.get("/api/admin/logs")
+    async def admin_logs(request: Request, lines: int = Query(200, ge=1, le=2000), level: str = Query("INFO")) -> Response:
+        denied = require_admin(request)
+        if denied is not None:
+            return denied
+        if level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+            return admin_error("invalid_level", "unsupported log level", 400)
+        runtime: Runtime = request.app.state.runtime
+        log_path = runtime.settings.database_path.parent / "logs" / "wechat-bot.log"
+        if not log_path.exists():
+            return JSONResponse({"logs": [], "lines": 0, "path": str(log_path)})
+        with log_path.open("r", encoding="utf-8", errors="replace") as f:
+            all_lines = f.readlines()
+        tail = all_lines[-lines:]
+        level_order = {"DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50}
+        threshold = level_order[level]
+        filtered = [line.rstrip() for line in tail if any(
+            lvl in line.upper() for lvl in [k for k, v in level_order.items() if v >= threshold]
+        )]
+        return JSONResponse({"logs": filtered, "lines": len(filtered), "path": str(log_path)})
 
     @app.get("/api/admin/users/{user_id}")
     async def admin_user(request: Request, user_id: int) -> Response:
@@ -377,7 +451,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         profile = runtime.store.get_admin_user(user_id, runtime.processor.managed_open_kfid)
         if profile is None:
             return admin_error("user_not_found", "用户不存在", 404)
-        return JSONResponse({"user": {"id": profile.user_id, "nickname": profile.nickname, "avatar_url": profile.avatar_url if profile.avatar_url.startswith("https://") else "", "gender": profile.gender, "first_seen_at": timestamp_json(profile.first_seen_at), "last_seen_at": timestamp_json(profile.last_seen_at), **runtime.store.customer_management(user_id)}}, headers={"Cache-Control": "no-store"})
+        graph_state = {}
+        convs = runtime.store.list_conversations(user_id)
+        if convs:
+            graph_state = runtime.store.get_conversation_graph_state(convs[0].id)
+        return JSONResponse({"user": {"id": profile.user_id, "nickname": profile.nickname, "avatar_url": profile.avatar_url if profile.avatar_url.startswith("https://") else "", "gender": profile.gender, "first_seen_at": timestamp_json(profile.first_seen_at), "last_seen_at": timestamp_json(profile.last_seen_at), **runtime.store.customer_management(user_id), "graph_state": graph_state}}, headers={"Cache-Control": "no-store"})
 
     @app.patch("/api/admin/users/{user_id}")
     async def admin_update_customer(request: Request, user_id: int, body: dict[str, object] = Body(...)) -> Response:
@@ -456,7 +534,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return admin_error("user_not_found", "用户不存在", 404)
         messages, has_more = runtime.store.admin_conversation_messages(user_id, runtime.processor.managed_open_kfid, before_id=before_id, limit=limit)
         runtime.store.mark_admin_user_read(user_id, messages[-1].id if messages else before_id)
-        return JSONResponse({"messages": [admin_message_json(m) for m in messages], "has_more": has_more, "next_before_id": messages[0].id if has_more and messages else None})
+        graph_state = {}
+        convs = runtime.store.list_conversations(user_id)
+        if convs:
+            graph_state = runtime.store.get_conversation_graph_state(convs[0].id)
+        return JSONResponse({"messages": [admin_message_json(m) for m in messages], "has_more": has_more, "next_before_id": messages[0].id if has_more and messages else None, "graph_state": graph_state})
 
     @app.post("/api/admin/users/{user_id}/messages")
     async def admin_send_message(request: Request, user_id: int, body: dict[str, object] | None = Body(default=None)) -> Response:

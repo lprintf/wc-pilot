@@ -47,7 +47,7 @@ class AuthenticationEndpointTests(unittest.IsolatedAsyncioTestCase):
             external_userid="external-user",
             send_time=1_788_000_060,
             customer_content="如何查看历史记录？",
-            reply_content="发送“查看记录”即可。",
+            reply_content="发送“个人中心”即可。",
         )
         self.other_user_id = self.store.get_or_create_customer(
             "wk-account", "other-external-user", seen_at=200

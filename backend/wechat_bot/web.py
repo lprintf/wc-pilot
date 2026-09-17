@@ -333,5 +333,5 @@ def render_authentication_required() -> str:
   </style>
 </head>
 <body><main><div class="icon">🔒</div><h1>登录已失效</h1>
-<p>请返回微信客服，发送“我的信息”或“查看记录”获取新的登录链接。</p>
+<p>请返回微信客服，发送“我的信息”获取新的登录链接。</p>
 </main></body></html>"""

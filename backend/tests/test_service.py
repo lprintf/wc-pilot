@@ -387,7 +387,7 @@ class CustomerServiceProcessorTests(unittest.IsolatedAsyncioTestCase):
         repeated_message = {
             **first_message,
             "msgid": "repeated-profile-command",
-            "text": {"content": "查看记录"},
+            "text": {"content": "个人中心"},
         }
 
         await processor._process_message(

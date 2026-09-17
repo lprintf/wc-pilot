@@ -9,6 +9,7 @@ import time
 from typing import Any
 
 from wechat_bot.auth import AuthManager, LoginTicketRateLimited
+from wechat_bot.graph.state import CustomerServiceState
 from wechat_bot.callback import CustomerServiceEvent
 from wechat_bot.llm import LLMError, OpenAICompatibleLLM
 from wechat_bot.replies import ReplyUnavailable, send_reply
@@ -20,7 +21,7 @@ LOGGER = logging.getLogger(__name__)
 FALLBACK_REPLY = "抱歉，智能客服暂时无法回答，请稍后再试。"
 PROFILE_CACHE_SECONDS = 24 * 60 * 60
 CUSTOMER_BATCH_SIZE = 100
-PROFILE_COMMANDS = frozenset({"我的信息", "我的消息", "个人中心", "查看记录"})
+PROFILE_COMMANDS = frozenset({"我的信息", "我的消息", "个人中心"})
 LOGIN_LINK_HISTORY_REPLY = "已发送一次性个人中心登录链接（链接已隐藏）。"
 LOGIN_LINK_RATE_LIMIT_REPLY = (
     "为了保护账号安全，登录链接每分钟只能生成一次。"
@@ -36,12 +37,14 @@ class CustomerServiceProcessor:
         store: MessageStore,
         configured_open_kfid: str = "",
         auth: AuthManager | None = None,
+        graph: object | None = None,
     ) -> None:
         self._wecom = wecom
         self._llm = llm
         self._store = store
         self._configured_open_kfid = configured_open_kfid
         self._auth = auth
+        self._graph = graph
         self._managed_open_kfid = ""
         self._locks: dict[str, asyncio.Lock] = {}
 
@@ -162,9 +165,13 @@ class CustomerServiceProcessor:
                 budget.footer()
                 history = self._store.history(user_id, timestamped=True)
                 try:
-                    reply = await self._llm.answer(self._batch_question(batch), history)
-                except (LLMError, ValueError):
-                    LOGGER.exception("LLM request failed; using fallback reply")
+                    reply = await self._invoke_graph(
+                        open_kfid, external_userid, user_id,
+                        self._store.get_or_create_conversation(user_id, open_kfid),
+                        self._batch_question(batch), history,
+                    )
+                except Exception:
+                    LOGGER.exception("Graph invocation failed; using fallback reply")
                     reply = FALLBACK_REPLY
                 reply_id = await send_reply(self._wecom, self._store, open_kfid, external_userid, reply)
             except ReplyUnavailable as exc:
@@ -178,6 +185,56 @@ class CustomerServiceProcessor:
                 reply_content=reply, reply_source_message_id=reply_id,
             )
             return True
+
+    async def _invoke_graph(
+        self,
+        open_kfid: str,
+        external_userid: str,
+        user_id: int,
+        conversation_id: int,
+        question: str,
+        history: Any,
+    ) -> str:
+        if self._graph is None:
+            try:
+                return await self._llm.answer(question, history)
+            except (LLMError, ValueError):
+                LOGGER.exception("LLM request failed; using fallback reply")
+                return FALLBACK_REPLY
+        history_dicts = [
+            {"role": m.role, "content": m.content}
+            for m in history
+            if getattr(m, "role", None) in {"user", "assistant"}
+        ]
+        result = await self._graph.ainvoke(
+            {
+                "user_id": user_id,
+                "conversation_id": conversation_id,
+                "open_kfid": open_kfid,
+                "external_userid": external_userid,
+                "incoming_messages": [{"role": "user", "content": question}],
+                "history": history_dicts,
+            },
+            config={"configurable": {"thread_id": str(conversation_id)}},
+        )
+        reply = str(result.get("reply_text") or "").strip() or FALLBACK_REPLY
+        LOGGER.info(
+            "graph result: user_id=%s intent=%s reply_len=%d kb_chunks=%d",
+            user_id,
+            result.get("intent", "?"),
+            len(reply),
+            len(result.get("knowledge_chunks", [])),
+        )
+        # Persist graph-derived state to the conversation for admin display
+        self._store.update_conversation_graph_state(
+            conversation_id,
+            intent=str(result.get("intent", "")),
+            scenario=str(result.get("scenario", "")),
+            business_facts=result.get("business_facts"),
+            discovery_step=result.get("discovery_step"),
+            estimate=result.get("estimate"),
+        )
+        return reply
 
     def _record_without_reply(self, open_kfid: str, message: dict[str, Any], user_id: int) -> None:
         text = message.get("text", {})
@@ -388,10 +445,14 @@ class CustomerServiceProcessor:
             return True
 
         history = self._store.history(user_id, timestamped=True)
+        conversation_id = self._store.get_or_create_conversation(user_id, open_kfid)
         try:
-            reply = await self._llm.answer(self._batch_question([message]), history)
-        except (LLMError, ValueError):
-            LOGGER.exception("LLM request failed; using fallback reply")
+            reply = await self._invoke_graph(
+                open_kfid, external_userid, user_id, conversation_id,
+                self._batch_question([message]), history,
+            )
+        except Exception:
+            LOGGER.exception("Graph invocation failed; using fallback reply")
             reply = FALLBACK_REPLY
         reply_message_id = await send_reply(self._wecom, self._store, open_kfid, external_userid, reply)
         self._store.mark_sent(

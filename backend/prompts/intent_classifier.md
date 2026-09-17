@@ -1,0 +1,11 @@
+分析用户在微信客服中的消息，输出它属于哪一种意图。
+只输出以下枚举值之一，不要输出任何解释、标点或换行：
+greeting
+capabilities
+knowledge_qa
+lead_gen
+after_sales
+business_discovery
+cost_feasibility
+human_handoff
+other
