@@ -1,27 +1,25 @@
-"""Build the LangGraph for the WeChat customer-service assistant."""
+"""Build the LangGraph ReAct loop for the WeChat customer-service assistant."""
 
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
+from typing import Any
 
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.tools import tool as langchain_tool
 from langgraph.graph import END, START, StateGraph
+from langgraph.prebuilt import ToolNode, tools_condition
 
-from wechat_bot.graph.intents import (
-    Intent,
-    classify_intent_with_llm,
-    is_profile_command,
-    merge_question_text,
-)
+from wechat_bot.graph.intents import Intent
 from wechat_bot.graph.knowledge import KnowledgeIndex
 from wechat_bot.graph.state import CustomerServiceState
 
-import logging
-
 LOGGER = logging.getLogger(__name__)
-
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent / "prompts"
-_SKILLS_DIR = Path(__file__).resolve().parent.parent.parent / "skills"
+FALLBACK_REPLY = "\u62b1\u6b49\uff0c\u667a\u80fd\u5ba2\u670d\u6682\u65f6\u65e0\u6cd5\u56de\u7b54\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002"
+
 
 def _load_prompt(name: str) -> str:
     path = _PROMPTS_DIR / name
@@ -29,326 +27,195 @@ def _load_prompt(name: str) -> str:
         return path.read_text("utf-8")
     return ""
 
-def _load_skill(name: str) -> str:
-    path = _SKILLS_DIR / name
-    if path.exists():
-        return path.read_text("utf-8")
-    return ""
 
-SYSTEM_PROMPT = _load_prompt("customer_service.md")
-FOLLOW_UP_PROMPT = _load_prompt("follow_up.md")
+def _make_tools(knowledge_index):
+    @langchain_tool
+    def search_knowledge(query: str) -> str:
+        """\u68c0\u7d22\u77e5\u8bc6\u5e93\uff0c\u67e5\u627e\u4e0e query \u76f8\u5173\u7684\u80fd\u529b\u3001\u6848\u4f8b\u3001\u5b9a\u4ef7\u548c FAQ\uff0c\u8fd4\u56de\u5e26\u6765\u6e90\u7684\u7247\u6bb5\u3002"""
+        if knowledge_index is None:
+            return "\u77e5\u8bc6\u5e93\u4e0d\u53ef\u7528\u3002"
+        chunks = knowledge_index.search(query, top_n=3)
+        if not chunks:
+            return "\u6ca1\u6709\u627e\u5230\u76f8\u5173\u5185\u5bb9\u3002"
+        return "\n\n".join(f"{c.source_label}\n{c.content}" for c in chunks)
 
-def load_conversation(state: CustomerServiceState) -> dict[str, object]:
-    """Load previous conversation state from the LangGraph checkpoint."""
-    return {}
+    @langchain_tool
+    def record_business_fact(field: str, value: str) -> str:
+        """\u8bb0\u5f55\u5ba2\u6237\u900f\u9732\u7684\u4e00\u9879\u4e1a\u52a1\u4fe1\u606f\u3002field \u662f\u5b57\u6bb5\u540d\uff08\u5982 industry/channel/pain/goal\uff09\uff0cvalue \u662f\u5185\u5bb9\u3002"""
+        return f"\u5df2\u8bb0\u5f55 {field}\uff1a{value}"
 
-async def detect_intent(state: CustomerServiceState) -> dict[str, object]:
-    """Route profile commands deterministically; delegate everything else to LLM."""
-    if state.get("intent"):
-        return {"error": None}
-    question = merge_question_text(state.get("incoming_messages", []))
-    if is_profile_command(question):
-        return {"intent": str(Intent.PROFILE), "error": None}
-    llm_client = state.get("llm_client")
-    if llm_client is None:
-        return {"intent": str(Intent.OTHER), "error": None}
-    intent = await classify_intent_with_llm(llm_client, question, state.get("history", []))
-    LOGGER.info("detect_intent: user_id=%s intent=%s question_len=%d", state.get("user_id"), intent, len(question))
-    return {"intent": str(intent), "error": None}
+    @langchain_tool
+    def escalate_to_human(reason: str) -> str:
+        """\u5f53\u5ba2\u6237\u660e\u786e\u8868\u8fbe\u9700\u8981\u4eba\u5de5\u8ddf\u8fdb\u7684\u610f\u56fe\u65f6\u8c03\u7528\uff0c\u751f\u6210\u660e\u786e CTA\u3002"""
+        return "\u597d\u7684\uff0c\u6211\u5df2\u7ecf\u8bb0\u5f55\u4f60\u7684\u9700\u6c42\u3002\u63a5\u4e0b\u6765\u53ef\u4ee5\u5b89\u6392\u4e00\u6b21\u4ea7\u54c1\u6f14\u793a\u6216\u5546\u52a1\u6c9f\u901a\uff0c\u4eba\u5de5\u5ba2\u670d\u4f1a\u7ee7\u7eed\u8ddf\u8fdb\u3002"
 
-def route_intent(state: CustomerServiceState) -> dict[str, object]:
-    return {}
+    return [search_knowledge, record_business_fact, escalate_to_human]
 
-def retrieve_knowledge(state: CustomerServiceState) -> dict[str, object]:
-    """Retrieve knowledge chunks using query from incoming messages."""
-    question = merge_question_text(state.get("incoming_messages", []))
-    index = state.get("knowledge_index")
-    if index is None:
-        return {"knowledge_chunks": []}
-    chunks = index.search(question, top_n=5)
-    LOGGER.info("retrieve_knowledge: chunks=%d query=%.80s", len(chunks), question)
-    return {
-        "knowledge_chunks": [
-            {
-                "document_path": chunk.document_path,
-                "title": chunk.title,
-                "heading": chunk.heading,
-                "content": chunk.content,
-                "ordinal": chunk.ordinal,
-                "source_label": chunk.source_label,
-            }
-            for chunk in chunks
-        ]
-    }
 
-def answer_with_kb(state: CustomerServiceState) -> dict[str, object]:
-    chunks = state.get("knowledge_chunks", [])
-    if not chunks:
-        return {"reply_text": "抱歉，我暂时没有在知识库中找到相关内容。"}
-    LOGGER.info("answer_with_kb: sources=%d", len(chunks))
-    parts: list[str] = ["以下回答来自知识库："]
-    seen: set[str] = set()
-    for chunk in chunks:
-        source = chunk.get("source_label") or chunk.get("document_path", "")
-        content = chunk.get("content", "").strip()
-        if not content or source in seen:
-            continue
-        seen.add(source)
-        parts.append(f"\n{source}\n\n{content}")
-    return {"reply_text": "\n".join(parts)}
+def _intent_from_tool_calls(messages: list[Any]) -> str:
+    """Derive a display intent from the tool calls made during the conversation."""
+    tool_seen: set[str] = set()
+    for msg in messages:
+        if isinstance(msg, AIMessage):
+            for tc in getattr(msg, "tool_calls", []) or []:
+                name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", "")
+                tool_seen.add(name)
+    if "escalate_to_human" in tool_seen:
+        return str(Intent.HUMAN_HANDOFF)
+    if "search_knowledge" in tool_seen and "record_business_fact" in tool_seen:
+        return str(Intent.BUSINESS_DISCOVERY)
+    if "search_knowledge" in tool_seen:
+        return str(Intent.KNOWLEDGE_QA)
+    if "record_business_fact" in tool_seen:
+        return str(Intent.BUSINESS_DISCOVERY)
+    return str(Intent.OTHER)
 
-def describe_capabilities(state: CustomerServiceState) -> dict[str, object]:
-    LOGGER.info("describe_capabilities: user_id=%s", state.get("user_id"))
-    index = state.get("knowledge_index")
-    if index is None:
-        return {"reply_text": "我可以帮助企业搭建获客引流、售后、知识库问答和人工协同系统。请描述你的业务场景。"}
-    chunks = index.search("获客引流 售后 知识库问答 人工协同", top_n=5)
-    if not chunks:
-        return {"reply_text": "我可以帮助企业搭建获客引流、售后、知识库问答和人工协同系统。请描述你的业务场景。"}
-    parts: list[str] = ["我们目前展示以下能力："]
-    seen: set[str] = set()
-    for ch in chunks:
-        if ch.content in seen:
-            continue
-        seen.add(ch.content)
-        parts.append(f"\n{ch.source_label}\n\n{ch.content}")
-    return {"reply_text": "\n".join(parts)}
 
-def engage_conversation(state: CustomerServiceState) -> dict[str, object]:
-    """Open a natural business conversation based on intent."""
-    intent = state.get("intent", "")
-    scenario = intent
-    question = merge_question_text(state.get("incoming_messages", []))
-    conversation_round = (state.get("conversation_round") or 0) + 1
-    skill_name = {
-        str(Intent.LEAD_GEN): "lead_gen.md",
-        str(Intent.AFTER_SALES): "after_sales.md",
-        str(Intent.BUSINESS_DISCOVERY): "business_analysis.md",
-        str(Intent.COST_FEASIBILITY): "business_analysis.md",
-    }.get(intent)
-    skill_text = _load_skill(skill_name) if skill_name else ""
-    index = state.get("knowledge_index")
-    chunks_raw: list[dict] = []
-    if index is not None:
-        for c in index.search(question, top_n=3):
-            chunks_raw.append({"source": c.source_label, "content": c.content})
-    LOGGER.info("engage_conversation: intent=%s round=%d", intent, conversation_round)
-    return {
-        "scenario": scenario,
-        "conversation_round": conversation_round,
-        "business_profile": {},
-        "knowledge_chunks": chunks_raw,
-        "reply_text": (
-            "好的，关于" + _intent_label(intent) + "，能简单聊聊你的业务吗？"
-            "比如你是什么行业的，主要在哪个渠道做客服？"
-        ),
-    }
+def _build_agent_model(model, tools):
+    if model is None:
+        return None
+    return model.bind_tools(tools)
 
-async def follow_up(state: CustomerServiceState) -> dict[str, object]:
-    """LLM-driven natural follow-up."""
-    llm_client = state.get("llm_client")
-    question = merge_question_text(state.get("incoming_messages", []))
-    business_profile = dict(state.get("business_profile") or {})
-    conversation_round = (state.get("conversation_round") or 0) + 1
-    intent = state.get("intent", "")
-    scenario = state.get("scenario", "")
-    skill_name = {
-        str(Intent.LEAD_GEN): "lead_gen.md",
-        str(Intent.AFTER_SALES): "after_sales.md",
-        str(Intent.BUSINESS_DISCOVERY): "business_analysis.md",
-        str(Intent.COST_FEASIBILITY): "business_analysis.md",
-    }.get(intent, "business_analysis.md")
-    skill_text = _load_skill(skill_name)
-    index = state.get("knowledge_index")
-    chunks_raw: list[dict] = []
-    if index is not None:
-        profile_keywords = " ".join(business_profile.values())
-        search_q = (question + " " + profile_keywords).strip()
-        for c in index.search(search_q, top_n=3):
-            chunks_raw.append({"source": c.source_label, "content": c.content})
-    if llm_client is None:
-        return {"reply_text": "抱歉，智能客服暂时无法回答，请稍后再试。"}
-    prompt = FOLLOW_UP_PROMPT
-    if not prompt:
-        prompt = _build_follow_up_prompt_fallback()
+
+async def _agent(state, model_bound):
+    """Agent node: calls the bound model with system prompt and message history."""
+    if model_bound is None:
+        return {
+            "messages": [AIMessage(content=FALLBACK_REPLY)],
+            "error": "no model configured",
+        }
+    system_text = _load_prompt("customer_service.md")
+    profile = state.get("business_profile") or {}
+    if profile:
+        system_text += f"\n\n\u5f53\u524d\u4e1a\u52a1\u753b\u50cf\uff1a\n{json.dumps(profile, ensure_ascii=False, indent=2)}"
+    round_num = state.get("conversation_round") or 0
+    if round_num:
+        system_text += f"\n\n\u5f53\u524d\u662f\u7b2c {round_num} \u8f6e\u5bf9\u8bdd\u3002\n\n\u53ef\u4ee5\u4f7f\u7528\u5de5\u5177\uff1asearch_knowledge\u3001record_business_fact\u3001escalate_to_human\u3002"
+
+    messages = [SystemMessage(content=system_text)]
+    messages.extend(state.get("messages") or [])
+
     try:
-        from wechat_bot.llm import ChatMessage
-        result_text = await llm_client.answer(
-            json.dumps({
-                "business_profile": business_profile,
-                "conversation_round": conversation_round,
-                "intent": intent,
-                "user_message": question,
-                "skill_guide": skill_text[:1500],
-                "knowledge_context": chunks_raw[:2],
-            }, ensure_ascii=False),
-            system_prompt=prompt,
-        )
-        parsed = _parse_llm_json(result_text)
+        response = await model_bound.ainvoke(messages)
     except Exception:
-        LOGGER.exception("follow_up LLM call failed")
-        return {"reply_text": "抱歉，智能客服暂时无法回答，请稍后再试。"}
-    reply = parsed.get("reply", "") or "能再详细说说吗？"
-    new_profile = parsed.get("business_profile") or business_profile
-    should_show = parsed.get("should_show_case", False)
-    should_propose = parsed.get("should_propose", False)
-    LOGGER.info("follow_up: round=%d profile_keys=%d show=%s propose=%s", conversation_round, len(new_profile), should_show, should_propose)
-    result: dict[str, object] = {
-        "reply_text": reply,
-        "business_profile": new_profile,
-        "conversation_round": conversation_round,
-        "knowledge_chunks": chunks_raw,
-        "scenario": scenario or intent,
-    }
-    if should_show and conversation_round >= 2:
-        result["_route"] = "show_capability"
-    elif should_propose and conversation_round >= 3:
-        result["_route"] = "propose_next"
-    else:
-        result["_route"] = "finalize"
-    return result
+        LOGGER.exception("agent LLM call failed")
+        return {
+            "messages": [AIMessage(content=FALLBACK_REPLY)],
+            "error": "model call failed",
+        }
+    tool_call_count = len(getattr(response, "tool_calls", []) or [])
+    content_len = len(str(response.content) or "") if response.content else 0
+    LOGGER.info(
+        "agent: tool_calls=%d content_len=%d",
+        tool_call_count,
+        content_len,
+    )
+    return {"messages": [response], "error": None}
 
-def show_capability(state: CustomerServiceState) -> dict[str, object]:
-    """Present a relevant case/capability from the knowledge base."""
-    business_profile = state.get("business_profile") or {}
-    index = state.get("knowledge_index")
-    if index is None:
-        return {"reply_text": state.get("reply_text") or "基于我们聊的内容，AI 可以在你的场景中落地。"}
-    profile_kw = " ".join(business_profile.values())
-    question = merge_question_text(state.get("incoming_messages", []))
-    search_q = (profile_kw + " " + question).strip()
-    chunks = index.search(search_q, top_n=3)
-    if not chunks:
-        return {"reply_text": state.get("reply_text")}
-    parts = [state.get("reply_text") or "以下是我们相关的案例和能力："]
-    seen = set()
-    for c in chunks:
-        if c.content in seen:
+
+def _prepare(state: CustomerServiceState) -> dict[str, object]:
+    """Run once per invocation: increment conversation round."""
+    return {"conversation_round": (state.get("conversation_round") or 0) + 1}
+
+
+def _finalize_reply(state: CustomerServiceState) -> dict[str, object]:
+    """Extract final reply, derive intent and scenario from tool calls."""
+    messages = state.get("messages") or []
+
+    reply = ""
+    for msg in reversed(messages):
+        if isinstance(msg, AIMessage) and msg.content:
+            content = msg.content
+            if isinstance(content, list):
+                reply = "".join(
+                    part.get("text", "")
+                    for part in content
+                    if isinstance(part, dict) and part.get("type") == "text"
+                ).strip()
+            elif isinstance(content, str):
+                reply = content.strip()
+            if reply:
+                break
+    if not reply:
+        reply = FALLBACK_REPLY
+
+    profile: dict[str, str] = dict(state.get("business_profile") or {})
+    scenario = state.get("scenario") or ""
+    escalated = False
+    for msg in messages:
+        if not isinstance(msg, AIMessage):
             continue
-        seen.add(c.content)
-        parts.append(f"\n{c.source_label}\n\n{c.content}")
-    return {"reply_text": "\n".join(parts)}
+        tcs = getattr(msg, "tool_calls", []) or []
+        for tc in tcs:
+            name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", "")
+            args = tc.get("args") if isinstance(tc, dict) else getattr(tc, "args", {})
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except (json.JSONDecodeError, TypeError):
+                    args = {}
+            if name == "record_business_fact":
+                field = str(args.get("field", "")).strip()
+                value = str(args.get("value", "")).strip()
+                if field and value:
+                    profile[field] = value
+            elif name == "escalate_to_human":
+                escalated = True
 
-def finalize_reply(state: CustomerServiceState) -> dict[str, object]:
-    LOGGER.info("finalize_reply: intent=%s reply_len=%d", state.get("intent", "?"), len(state.get("reply_text", "") or ""))
-    if not state.get("reply_text"):
-        return {"reply_text": "抱歉，我暂时无法回答，请换一种方式描述你的问题。"}
-    return {}
+    if escalated:
+        scenario = "human_handoff"
 
-def escalate_to_human(state: CustomerServiceState) -> dict[str, object]:
-    LOGGER.info("escalate_to_human: user_id=%s", state.get("user_id"))
+    intent = _intent_from_tool_calls(messages)
+
+    LOGGER.info(
+        "finalize: reply_len=%d profile_keys=%d scenario=%s intent=%s",
+        len(reply), len(profile), scenario, intent,
+    )
+
     return {
-        "reply_text": "好的，我已经记录了你的兴趣。接下来可以安排一次产品演示或商务沟通，人工客服会继续跟进。",
+        "reply_text": reply,
+        "business_profile": profile,
+        "scenario": scenario,
+        "intent": intent,
+        "error": state.get("error"),
     }
 
-def _intent_label(intent: str) -> str:
-    return {
-        str(Intent.LEAD_GEN): "获客引流",
-        str(Intent.AFTER_SALES): "售后客服",
-        str(Intent.BUSINESS_DISCOVERY): "业务咨询",
-        str(Intent.COST_FEASIBILITY): "落地评估",
-    }.get(intent, "你的需求")
 
-def _parse_llm_json(text: str) -> dict:
-    """Best-effort JSON parse from LLM output."""
-    text = text.strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    import re
-    m = re.search(r"{[\s\S]*}", text)
-    if m:
-        try:
-            return json.loads(m.group(0))
-        except json.JSONDecodeError:
-            pass
-    return {}
+def build_graph(
+    *,
+    knowledge_index: KnowledgeIndex | None = None,
+    model: Any = None,
+    checkpointer: Any = None,
+):
+    """Build and compile the ReAct loop graph.
 
-def _build_follow_up_prompt_fallback() -> str:
-    return "你是 AI 客服展示助手的追问节点。根据客户回复更新 business_profile 并生成下一轮回复。"
+    The graph handles tool-calling cycles (agent -> tools -> agent)
+    followed by a finalize step that extracts reply text and business state.
+    """
+    tools = _make_tools(knowledge_index)
+    model_bound = _build_agent_model(model, tools)
 
-_INTENT_ROUTES: dict[str, str] = {
-    str(Intent.PROFILE): "profile",
-    str(Intent.GREETING): "greeting",
-    str(Intent.CAPABILITIES): "capabilities",
-    str(Intent.KNOWLEDGE_QA): "knowledge_qa",
-    str(Intent.LEAD_GEN): "engage",
-    str(Intent.AFTER_SALES): "engage",
-    str(Intent.BUSINESS_DISCOVERY): "engage",
-    str(Intent.COST_FEASIBILITY): "engage",
-    str(Intent.HUMAN_HANDOFF): "human_handoff",
-    str(Intent.OTHER): "other",
-}
+    async def agent_wrapper(state: CustomerServiceState) -> dict[str, object]:
+        return await _agent(state, model_bound)
 
-def _route_intent(state: CustomerServiceState) -> str:
-    intent = str(state.get("intent", ""))
-    return _INTENT_ROUTES.get(intent, "other")
+    workflow = StateGraph(CustomerServiceState)
 
-_FOLLOW_UP_ROUTES = {
-    "show_capability": "show_capability",
-    "propose_next": "finalize_reply",
-    "finalize": "finalize_reply",
-}
+    workflow.add_node("prepare", _prepare)
+    workflow.add_node("agent", agent_wrapper)
+    workflow.add_node("tools", ToolNode(tools))
+    workflow.add_node("finalize_reply", _finalize_reply)
 
-def _after_follow_up(state: CustomerServiceState) -> str:
-    route = str(state.get("_route", "finalize"))
-    return _FOLLOW_UP_ROUTES.get(route, "finalize")
+    workflow.add_edge(START, "prepare")
+    workflow.add_edge("prepare", "agent")
+    workflow.add_conditional_edges(
+        "agent",
+        tools_condition,
+        {"tools": "tools", "__end__": "finalize_reply"},
+    )
+    workflow.add_edge("tools", "agent")
+    workflow.add_edge("finalize_reply", END)
 
-def build_graph(*, knowledge_index=None, llm_client=None, checkpointer=None):
-    graph = StateGraph(CustomerServiceState)
-    graph.add_node("load_conversation", load_conversation)
+    return workflow.compile(checkpointer=checkpointer)
 
-    async def _detect(state):
-        return await detect_intent(state | {"llm_client": llm_client})
-    graph.add_node("detect_intent", _detect)
-    graph.add_node("route_intent", route_intent)
-
-    graph.add_node("describe_capabilities", lambda s: describe_capabilities(s | {"knowledge_index": knowledge_index}))
-    graph.add_node("retrieve_knowledge", lambda s: retrieve_knowledge(s | {"knowledge_index": knowledge_index}))
-    graph.add_node("answer_with_kb", answer_with_kb)
-
-    async def _engage(state):
-        return engage_conversation(state | {"knowledge_index": knowledge_index})
-    graph.add_node("engage_conversation", _engage)
-
-    async def _follow(state):
-        return await follow_up(state | {"llm_client": llm_client, "knowledge_index": knowledge_index})
-    graph.add_node("follow_up", _follow)
-
-    graph.add_node("show_capability", lambda s: show_capability(s | {"knowledge_index": knowledge_index}))
-    graph.add_node("escalate_to_human", escalate_to_human)
-    graph.add_node("finalize_reply", finalize_reply)
-
-    graph.add_edge(START, "load_conversation")
-    graph.add_edge("load_conversation", "detect_intent")
-    graph.add_edge("detect_intent", "route_intent")
-
-    graph.add_conditional_edges("route_intent", _route_intent, {
-        "profile": "finalize_reply",
-        "greeting": "describe_capabilities",
-        "capabilities": "describe_capabilities",
-        "knowledge_qa": "retrieve_knowledge",
-        "engage": "engage_conversation",
-        "human_handoff": "escalate_to_human",
-        "other": "finalize_reply",
-    })
-
-    graph.add_edge("describe_capabilities", "finalize_reply")
-    graph.add_edge("retrieve_knowledge", "answer_with_kb")
-    graph.add_edge("answer_with_kb", "finalize_reply")
-    graph.add_edge("engage_conversation", "follow_up")
-
-    graph.add_conditional_edges("follow_up", _after_follow_up, {
-        "show_capability": "show_capability",
-        "propose_next": "finalize_reply",
-        "finalize": "finalize_reply",
-    })
-
-    graph.add_edge("show_capability", "finalize_reply")
-    graph.add_edge("escalate_to_human", "finalize_reply")
-    graph.add_edge("finalize_reply", END)
-
-    return graph.compile(checkpointer=checkpointer)
 
 COMPILED_GRAPH = build_graph()

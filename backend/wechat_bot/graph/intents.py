@@ -1,16 +1,13 @@
 """Intent enumeration with minimal deterministic routing.
 
 Only system-level commands (profile) are hardcoded; all other intents
-are classified by the LLM to avoid brittle keyword matching.
+are derived by the graph from the conversation context (tool calls, etc.).
 """
 
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import TYPE_CHECKING, Sequence
-
-if TYPE_CHECKING:
-    from wechat_bot.llm import OpenAICompatibleLLM
+from typing import Sequence
 
 
 class Intent(StrEnum):
@@ -27,7 +24,7 @@ class Intent(StrEnum):
 
 
 PROFILE_KEYWORDS: frozenset[str] = frozenset(
-    {"个人中心", "我的信息", "我的消息"}
+    {"\u4e2a\u4eba\u4e2d\u5fc3", "\u6211\u7684\u4fe1\u606f", "\u6211\u7684\u6d88\u606f"}
 )
 
 
@@ -53,44 +50,3 @@ def merge_question_text(
             if content:
                 parts.append(content)
     return "\n\n".join(parts)
-
-def _load_prompt(name: str) -> str:
-    """Load a prompt from backend/prompts/."""
-    from pathlib import Path
-    prompts_dir = Path(__file__).resolve().parents[2] / "prompts"
-    path = prompts_dir / name
-    if path.exists():
-        return path.read_text("utf-8")
-    return ""
-
-
-CLASSIFY_INTENT_PROMPT = _load_prompt("intent_classifier.md")
-
-
-async def classify_intent_with_llm(
-    llm_client: OpenAICompatibleLLM,
-    question: str,
-    history: Sequence[dict[str, str]] = (),
-) -> Intent:
-    """Ask the LLM to classify the user's intent from a fixed enum."""
-    from wechat_bot.llm import ChatMessage
-    chat_history = [
-        ChatMessage(role=m["role"], content=m["content"])
-        for m in history
-        if m.get("role") in {"user", "assistant"}
-    ]
-    reply = await llm_client.answer(
-        question,
-        chat_history,
-        system_prompt=CLASSIFY_INTENT_PROMPT,
-    )
-    normalized = reply.strip().lower()
-    valid = set(Intent.__members__.values())
-    if normalized in valid:
-        return Intent(normalized)
-    # fallback: try match after removing punctuation
-    import re
-    cleaned = re.sub(r"[^a-z_]", "", normalized)
-    if cleaned in valid:
-        return Intent(cleaned)
-    return Intent.OTHER

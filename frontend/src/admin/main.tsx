@@ -39,13 +39,9 @@ function Info({ userId, graphState }: { userId: number|null; graphState?: GraphS
   <dt style={{marginTop:20,borderTop:"1px solid #e5e7eb",paddingTop:12}}>AI 状态</dt>
   {graphState.intent && <dd>意图: {graphState.intent}</dd>}
   {graphState.scenario && <dd>场景: {graphState.scenario}</dd>}
-  {graphState.discovery_step!==undefined && <dd>发现步骤: {graphState.discovery_step}</dd>}
-  {graphState.business_facts && <>
-    <dd>行业: {graphState.business_facts.industry||"-"}</dd>
-    <dd>渠道: {graphState.business_facts.channel||"-"}</dd>
-    <dd>日咨询量: {graphState.business_facts.volume||"-"}</dd>
-    <dd>痛点: {graphState.business_facts.pain||"-"}</dd>
-    <dd>目标: {graphState.business_facts.goal||"-"}</dd>
+  {graphState.conversation_round!==undefined && <dd>对话轮次: {graphState.conversation_round}</dd>}
+  {graphState.business_profile && Object.keys(graphState.business_profile).length>0 && <>
+    {Object.entries(graphState.business_profile).map(([key,value]) => <dd key={key}>{key}: {value}</dd>)}
   </>}
 </>}
 </dl></aside> }

@@ -4,25 +4,30 @@
 
 容器运行后提供以下端点：
 
-## LangGraph 对话编排
+## LangGraph ReAct 循环
 
-消息到达后不再直接调用 LLM，而是进入 LangGraph 有状态图：
+消息到达后进入 ReAct 循环（Agent -> Tools -> Agent -> ...）：
 
 ```
-START -> load_conversation -> detect_intent -> route_intent
-  -> greeting     (welcome_customer)
-  -> capabilities (describe_capabilities)
-  -> knowledge_qa (retrieve_knowledge -> answer_with_kb)
-  -> lead_gen / after_sales (start_discovery -> collect_business_facts)
-  -> business_discovery (collect_business_facts -> estimate_cost_feasibility)
-  -> human_handoff (escalate_to_human)
-  -> profile (login link)
-  -> other (finalize_reply)
-  -> END
+START -> prepare -> agent -> tools_condition
+  tools_condition -- "有 tool_calls" --> tools -> agent
+  tools_condition -- "结束" --> finalize_reply -> END
 ```
 
-意图识别除 `个人中心/我的信息/我的消息/查看记录` 硬编码外，全部交给 LLM 分类。多轮业务信息采集（行业、渠道、日咨
-询量、痛点、目标）通过 AsyncSqliteSaver checkpoint 跨轮持久化，Admin 后台可查看进度和估算结果。
+- `agent`: 注入系统提示词、当前业务画像，调用 ChatOpenAI.bind_tools([search_knowledge, record_business_fact, escalate_to_human])
+- `tools`: ToolNode 执行工具调用
+- `tools_condition`: 检测最后一条 AIMessage 是否有 tool_calls，决定继续循环或转入 finalize
+- `finalize_reply`: 提取最终回复，从工具调用中解析 business_profile 和 intent/scenario
+
+工具:
+- `search_knowledge(query)`: RAG 检索知识库
+- `record_business_fact(field,value)`: 模型主动记录客户业务信息
+- `escalate_to_human(reason)`: 转人工跟进
+
+profile 三关键词（个人中心/我的信息/我的消息）在 service 层硬编码拦截，不走图。
+
+LLM 层使用 langchain-openai `ChatOpenAI(base_url=..., api_key=..., model=...)`，原生支持 function calling。
+多轮业务信息通过 AsyncSqliteSaver checkpoint 持久化，Admin 后台可查看 business_profile 和 conversation_round。
 
 知识库 MD 文件位于 `backend/knowledge/*.md`，启动时自动索引。
 Admin 后台新增 `GET /api/admin/logs?lines=200&level=INFO` 日志查看接口。

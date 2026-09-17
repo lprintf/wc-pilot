@@ -28,7 +28,7 @@ from wechat_bot.config import Settings
 from wechat_bot.graph.graph import build_graph
 from wechat_bot.graph.knowledge import KnowledgeIndex
 from wechat_bot.crypto import CallbackCryptoError, WeComCallbackCrypto
-from wechat_bot.llm import OpenAICompatibleLLM
+from wechat_bot.llm import OpenAICompatibleLLM, build_chat_model
 from wechat_bot.service import CustomerServiceProcessor
 from wechat_bot.store import MessageStore
 from wechat_bot.web import render_authentication_required
@@ -47,7 +47,7 @@ class Runtime:
         self.store = MessageStore(settings.database_path)
         self.auth = AuthManager(self.store, settings.public_base_url)
         self.wecom = WeComClient(settings.corp_id, settings.app_agent_secret)
-        self.llm = OpenAICompatibleLLM(settings.llm)
+        self.llm = build_chat_model(settings.llm)
         self.knowledge_index = KnowledgeIndex(
             settings.database_path.with_name("knowledge.db")
         )
@@ -56,7 +56,7 @@ class Runtime:
         self._checkpointer = AsyncSqliteSaver(self._checkpoint_connection)
         self.graph = build_graph(
             knowledge_index=self.knowledge_index,
-            llm_client=self.llm,
+            model=self.llm,
             checkpointer=self._checkpointer,
         )
         self.processor = CustomerServiceProcessor(
@@ -144,7 +144,8 @@ class Runtime:
             _done, pending = await asyncio.wait(self.tasks, timeout=10)
             for task in pending:
                 task.cancel()
-        await self.llm.aclose()
+        if hasattr(self.llm, "aclose"):
+            await self.llm.aclose()
         await self.wecom.aclose()
         self.knowledge_index.close()
         await self._checkpoint_connection.close()
@@ -409,7 +410,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "last_active_at": timestamp_json(u.last_active_at),
                 "unread_count": u.unread_count,
                 "latest_intent": gs.get("intent", ""),
-                "discovery_step": gs.get("discovery_step"),
+                "conversation_round": gs.get("conversation_round"),
+                "discovery_step": gs.get("discovery_step") or gs.get("conversation_round"),
                 "scenario": gs.get("scenario", ""),
             })
         return JSONResponse({"users": results, "page": page, "page_size": page_size, "total": total})

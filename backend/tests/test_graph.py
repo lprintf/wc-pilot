@@ -1,54 +1,34 @@
 import unittest
 
-import asyncio
 
-from wechat_bot.graph.graph import COMPILED_GRAPH
 from wechat_bot.graph.intents import Intent, is_profile_command, merge_question_text
 
 
 class ProfileCommandTests(unittest.TestCase):
     def test_profile_keywords_are_deterministic(self):
-        self.assertTrue(is_profile_command("个人中心"))
-        self.assertTrue(is_profile_command("我的信息"))
-        self.assertTrue(is_profile_command("我的消息"))
-        
+        self.assertTrue(is_profile_command("\u4e2a\u4eba\u4e2d\u5fc3"))
+        self.assertTrue(is_profile_command("\u6211\u7684\u4fe1\u606f"))
+        self.assertTrue(is_profile_command("\u6211\u7684\u6d88\u606f"))
+
 
     def test_non_command_text_is_not_profile(self):
-        self.assertFalse(is_profile_command("获客引流"))
-        self.assertFalse(is_profile_command("售后"))
-        self.assertFalse(is_profile_command("随便聊聊"))
+        self.assertFalse(is_profile_command("\u83b7\u5ba2\u5f15\u6d41"))
+        self.assertFalse(is_profile_command("\u552e\u540e"))
+        self.assertFalse(is_profile_command("\u968f\u4fbf\u804a\u804a"))
         self.assertFalse(is_profile_command(""))
 
 
 class MergeQuestionTextTests(unittest.TestCase):
     def test_merges_only_user_messages(self):
         messages = [
-            {"role": "user", "content": "第一个问题"},
-            {"role": "assistant", "content": "不应被合并"},
-            {"role": "user", "content": "第二个问题"},
+            {"role": "user", "content": "\u7b2c\u4e00\u4e2a\u95ee\u9898"},
+            {"role": "assistant", "content": "\u4e0d\u5e94\u88ab\u5408\u5e76"},
+            {"role": "user", "content": "\u7b2c\u4e8c\u4e2a\u95ee\u9898"},
         ]
         self.assertEqual(
             merge_question_text(messages),
-            "第一个问题\n\n第二个问题",
+            "\u7b2c\u4e00\u4e2a\u95ee\u9898\n\n\u7b2c\u4e8c\u4e2a\u95ee\u9898",
         )
-
-
-class GraphSkeletonTests(unittest.TestCase):
-    def test_profile_command_routes_to_profile_intent(self):
-        result = asyncio.run(COMPILED_GRAPH.ainvoke(
-            {"incoming_messages": [{"role": "user", "content": "个人中心"}]},
-        ))
-        self.assertEqual(result["intent"], Intent.PROFILE)
-        self.assertEqual(result["intent"], "profile")
-        self.assertTrue(result["reply_text"])
-
-    def test_unknown_intent_uses_other(self):
-        result = asyncio.run(COMPILED_GRAPH.ainvoke(
-            {"incoming_messages": [{"role": "user", "content": "你们能做什么？"}]},
-        ))
-        self.assertEqual(result["intent"], Intent.OTHER)
-        self.assertEqual(result["intent"], "other")
-        self.assertTrue(result["reply_text"])
 
 
 if __name__ == "__main__":

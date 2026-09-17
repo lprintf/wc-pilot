@@ -1,16 +1,18 @@
-"""Typed state for the WeChat customer-service assistant graph."""
+﻿"""Typed state for the WeChat customer-service assistant graph."""
 
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Annotated, Any, TypedDict
+
+from langgraph.graph.message import add_messages
 
 
 class CustomerServiceState(TypedDict, total=False):
-    """Mutable state shared by the LangGraph nodes.
+    """Mutable state shared by the LangGraph ReAct loop.
 
-    The graph is invoked once per WeChat callback batch.  ``business_profile``
-    and ``conversation_round`` persist across invocations through the
-    LangGraph checkpoint.
+    ``messages`` is reduced by LangGraph's ``add_messages`` so tool messages
+    and model replies accumulate within a turn.  ``business_profile`` and
+    ``conversation_round`` persist across invocations through the checkpoint.
     """
 
     user_id: int
@@ -18,16 +20,13 @@ class CustomerServiceState(TypedDict, total=False):
     open_kfid: str
     external_userid: str
 
-    incoming_messages: list[dict[str, Any]]
-    history: list[dict[str, Any]]
+    messages: Annotated[list[Any], add_messages]
 
     intent: str
     scenario: str
 
-    knowledge_chunks: list[dict[str, Any]]
     business_profile: dict[str, str]
     conversation_round: int
 
     reply_text: str
     error: str | None
-

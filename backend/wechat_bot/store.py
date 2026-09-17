@@ -871,6 +871,8 @@ class MessageStore:
             ("business_facts_json", "TEXT"),
             ("discovery_step", "INTEGER"),
             ("estimate_json", "TEXT"),
+            ("business_profile_json", "TEXT"),
+            ("conversation_round", "INTEGER"),
         ]:
             try:
                 self._connection.execute(
@@ -883,9 +885,8 @@ class MessageStore:
         self, conversation_id: int, *,
         intent: str = "",
         scenario: str = "",
-        business_facts: dict | None = None,
-        discovery_step: int | None = None,
-        estimate: dict | None = None,
+        business_profile: dict | None = None,
+        conversation_round: int | None = None,
     ) -> None:
         """Persist graph-derived state on the conversation row."""
         import json
@@ -898,18 +899,14 @@ class MessageStore:
         if scenario:
             updates.append("scenario=?")
             params.append(scenario)
-        if business_facts is not None:
-            updates.append("business_facts_json=?")
-            params.append(json.dumps(business_facts, ensure_ascii=False))
-        if discovery_step is not None:
-            updates.append("discovery_step=?")
-            params.append(discovery_step)
-        if estimate is not None:
-            updates.append("estimate_json=?")
-            params.append(json.dumps(estimate, ensure_ascii=False))
+        if business_profile is not None:
+            updates.append("business_profile_json=?")
+            params.append(json.dumps(business_profile, ensure_ascii=False))
+        if conversation_round is not None:
+            updates.append("conversation_round=?")
+            params.append(conversation_round)
         if not updates:
             return
-        params.append(conversation_id)
         with self._lock:
             self._connection.execute(
                 f"UPDATE conversation SET {','.join(updates)}, updated_at=? WHERE id=?",
@@ -922,7 +919,8 @@ class MessageStore:
         with self._lock:
             row = self._connection.execute(
                 """SELECT latest_intent, scenario, business_facts_json,
-                          discovery_step, estimate_json
+                          discovery_step, estimate_json, business_profile_json,
+                          conversation_round
                    FROM conversation WHERE id=?""",
                 (conversation_id,),
             ).fetchone()
@@ -933,11 +931,18 @@ class MessageStore:
             result["intent"] = row["latest_intent"]
         if row["scenario"]:
             result["scenario"] = row["scenario"]
-        if row["business_facts_json"]:
+        if row["business_profile_json"]:
+            try:
+                result["business_profile"] = json.loads(row["business_profile_json"])
+            except Exception:
+                pass
+        elif row["business_facts_json"]:
             try:
                 result["business_facts"] = json.loads(row["business_facts_json"])
             except Exception:
                 pass
+        if row["conversation_round"] is not None:
+            result["conversation_round"] = row["conversation_round"]
         if row["discovery_step"] is not None:
             result["discovery_step"] = row["discovery_step"]
         if row["estimate_json"]:

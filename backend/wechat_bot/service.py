@@ -11,6 +11,7 @@ from typing import Any
 from wechat_bot.auth import AuthManager, LoginTicketRateLimited
 from wechat_bot.graph.state import CustomerServiceState
 from wechat_bot.callback import CustomerServiceEvent
+from langchain_core.messages import HumanMessage
 from wechat_bot.llm import LLMError, OpenAICompatibleLLM
 from wechat_bot.replies import ReplyUnavailable, send_reply
 from wechat_bot.store import MessageStore
@@ -196,43 +197,41 @@ class CustomerServiceProcessor:
         history: Any,
     ) -> str:
         if self._graph is None:
-            try:
-                return await self._llm.answer(question, history)
-            except (LLMError, ValueError):
-                LOGGER.exception("LLM request failed; using fallback reply")
-                return FALLBACK_REPLY
-        history_dicts = [
-            {"role": m.role, "content": m.content}
-            for m in history
-            if getattr(m, "role", None) in {"user", "assistant"}
-        ]
+            answer = getattr(self._llm, "answer", None)
+            if callable(answer):
+                try:
+                    return await answer(question, history)
+                except (LLMError, ValueError):
+                    LOGGER.exception("LLM request failed; using fallback reply")
+                    return FALLBACK_REPLY
+            return FALLBACK_REPLY
         result = await self._graph.ainvoke(
             {
                 "user_id": user_id,
                 "conversation_id": conversation_id,
                 "open_kfid": open_kfid,
                 "external_userid": external_userid,
-                "incoming_messages": [{"role": "user", "content": question}],
-                "history": history_dicts,
+                "messages": [HumanMessage(content=question)],
             },
             config={"configurable": {"thread_id": str(conversation_id)}},
         )
         reply = str(result.get("reply_text") or "").strip() or FALLBACK_REPLY
         LOGGER.info(
-            "graph result: user_id=%s intent=%s reply_len=%d kb_chunks=%d",
+            "graph result: user_id=%s intent=%s scenario=%s reply_len=%d profile_keys=%d round=%s",
             user_id,
             result.get("intent", "?"),
+            result.get("scenario", "?"),
             len(reply),
-            len(result.get("knowledge_chunks", [])),
+            len(result.get("business_profile") or {}),
+            result.get("conversation_round", "?"),
         )
         # Persist graph-derived state to the conversation for admin display
         self._store.update_conversation_graph_state(
             conversation_id,
             intent=str(result.get("intent", "")),
             scenario=str(result.get("scenario", "")),
-            business_facts=result.get("business_facts"),
-            discovery_step=result.get("discovery_step"),
-            estimate=result.get("estimate"),
+            business_profile=result.get("business_profile"),
+            conversation_round=result.get("conversation_round"),
         )
         return reply
 

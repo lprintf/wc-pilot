@@ -173,3 +173,21 @@ def _truncate_utf8(text: str, max_bytes: int) -> str:
     if len(encoded) <= max_bytes:
         return text
     return encoded[:max_bytes].decode("utf-8", errors="ignore").rstrip()
+
+def build_chat_model(config: LLMConfig):
+    """Return a LangChain ``ChatOpenAI`` backed by the configured endpoint.
+
+    The returned model supports native function-calling via ``.bind_tools()``
+    and can be used with ``langgraph.prebuilt.create_react_agent`` or a
+    manual ``StateGraph`` ReAct loop.
+    """
+    from langchain_openai import ChatOpenAI
+
+    return ChatOpenAI(
+        base_url=config.base_url.rstrip("/"),
+        api_key=config.api_key,
+        model=config.model,
+        timeout=config.timeout_seconds,
+        max_retries=1,
+        use_responses_api=False,
+    )
