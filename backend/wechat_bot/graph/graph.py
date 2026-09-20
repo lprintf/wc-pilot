@@ -30,11 +30,12 @@ def _load_prompt(name: str) -> str:
 
 def _make_tools(knowledge_index):
     @langchain_tool
-    def search_knowledge(query: str) -> str:
-        """\u68c0\u7d22\u77e5\u8bc6\u5e93\uff0c\u67e5\u627e\u4e0e query \u76f8\u5173\u7684\u80fd\u529b\u3001\u6848\u4f8b\u3001\u5b9a\u4ef7\u548c FAQ\uff0c\u8fd4\u56de\u5e26\u6765\u6e90\u7684\u7247\u6bb5\u3002"""
+    def search_knowledge(query: str, tags: str = "") -> str:
+        """\u68c0\u7d22\u77e5\u8bc6\u5e93\u3002query \u7528 3-5 \u4e2a\u5173\u952e\u8bcd\uff0c\u7a7a\u683c\u5206\u9694\uff1btags \u53ef\u4f20\u4e1a\u52a1\u6807\u7b7e\uff0c\u9017\u53f7\u5206\u9694\uff08\u5982 \u4ea7\u54c1\u4ecb\u7ecd,\u83b7\u5ba2\u5f15\u6d41\uff09\u3002"""
         if knowledge_index is None:
             return "\u77e5\u8bc6\u5e93\u4e0d\u53ef\u7528\u3002"
-        chunks = knowledge_index.search(query, top_n=3)
+        tag_list = [t.strip() for t in tags.replace("\uff0c", ",").split(",") if t.strip()]
+        chunks = knowledge_index.search(query, top_n=3, tags=tag_list or None)
         if not chunks:
             return "\u6ca1\u6709\u627e\u5230\u76f8\u5173\u5185\u5bb9\u3002"
         return "\n\n".join(f"{c.source_label}\n{c.content}" for c in chunks)

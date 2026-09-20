@@ -1,7 +1,7 @@
-"""Markdown knowledge base indexer and keyword retriever.
+"""Markdown knowledge base indexer and tag-aware keyword retriever.
 
 Scans ``backend/knowledge/*.md``, chunks by H1/H2 headings, stores in
-SQLite and provides keyword-based top-N retrieval.
+SQLite and provides tag-filtered keyword top-N retrieval.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ class KnowledgeChunk:
     heading: str
     content: str
     ordinal: int
+    tags: tuple[str, ...] = ()
 
     @property
     def source_label(self) -> str:
@@ -31,7 +32,7 @@ class KnowledgeChunk:
 
 
 class KnowledgeIndex:
-    """SQLite-backed keyword index with FTS acceleration."""
+    """SQLite-backed tag-aware keyword index."""
 
     def __init__(self, db_path: Path, *, knowledge_dir: Path | None = None) -> None:
         import sqlite3
@@ -63,13 +64,15 @@ class KnowledgeIndex:
                     document_id INTEGER NOT NULL REFERENCES knowledge_document(id) ON DELETE CASCADE,
                     heading TEXT,
                     content TEXT NOT NULL,
-                    ordinal INTEGER NOT NULL
+                    ordinal INTEGER NOT NULL,
+                    tags TEXT NOT NULL DEFAULT ''
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_knowledge_chunk_doc
                     ON knowledge_chunk(document_id);
                 """
             )
+            self._ensure_column("knowledge_chunk", "tags", "TEXT NOT NULL DEFAULT ''")
             try:
                 self._connection.execute(
                     "CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_chunk_fts USING fts5(content)"
@@ -77,10 +80,16 @@ class KnowledgeIndex:
             except Exception:
                 pass
 
+    def _ensure_column(self, table: str, column: str, ddl: str) -> None:
+        """Add a column to an existing table if it is missing."""
+        try:
+            self._connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+        except Exception:
+            pass
+
     def reindex(self) -> int:
         """Rescan all .md files and return chunk count."""
         import time
-        import sqlite3
 
         files = sorted(self._knowledge_dir.glob("*.md"))
         total = 0
@@ -101,10 +110,8 @@ class KnowledgeIndex:
                     ).fetchone()[0]
                     continue
 
-                title = ""
-                match = re.search(r"^# (.+)$", text, re.MULTILINE)
-                if match:
-                    title = match.group(1).strip()
+                title, tags = _extract_title_and_tags(text)
+                body_text = _strip_frontmatter(text)
 
                 now = int(time.time())
                 if existing:
@@ -119,11 +126,11 @@ class KnowledgeIndex:
                 )
                 doc_id = cur.lastrowid
 
-                chunks = _split_markdown(title, text)
+                chunks = _split_markdown(title, body_text)
                 for i, (heading, content) in enumerate(chunks):
                     self._connection.execute(
-                        "INSERT INTO knowledge_chunk(document_id,heading,content,ordinal) VALUES(?,?,?,?)",
-                        (doc_id, heading or None, content, i),
+                        "INSERT INTO knowledge_chunk(document_id,heading,content,ordinal,tags) VALUES(?,?,?,?,?)",
+                        (doc_id, heading or None, content, i, ",".join(tags)),
                     )
                 total += len(chunks)
 
@@ -134,9 +141,8 @@ class KnowledgeIndex:
                 [str(f.relative_to(self._knowledge_dir)).replace("\\", "/") for f in files],
             ).rowcount
             if deleted:
-                pass  # CASCADE cleans chunks
+                pass
 
-            # Rebuild FTS
             try:
                 self._connection.execute("DELETE FROM knowledge_chunk_fts")
                 self._connection.execute(
@@ -147,18 +153,38 @@ class KnowledgeIndex:
 
         return total
 
-    def search(self, query: str, top_n: int = 5) -> list[KnowledgeChunk]:
-        """Keyword-overlap retrieval; returns top-N chunks."""
+    def search(
+        self,
+        query: str,
+        top_n: int = 5,
+        tags: Sequence[str] | None = None,
+    ) -> list[KnowledgeChunk]:
+        """Keyword-overlap retrieval filtered by optional tags."""
         tokens = _tokenize(query)
         if not tokens:
             return []
 
+        clauses: list[str] = []
+        params: list[object] = []
+        for tag in tags or []:
+            value = str(tag).strip()
+            if value:
+                clauses.append("c.tags LIKE ?")
+                params.append(f"%{value}%")
+
+        where = ""
+        if clauses:
+            where = " WHERE " + " AND ".join(clauses)
+
+        sql = (
+            """SELECT d.path, d.title, c.heading, c.content, c.ordinal, c.tags
+               FROM knowledge_chunk c
+               JOIN knowledge_document d ON d.id = c.document_id"""
+            + where
+        )
+
         with self._lock:
-            rows = self._connection.execute(
-                """SELECT d.path, d.title, c.heading, c.content, c.ordinal
-                   FROM knowledge_chunk c
-                   JOIN knowledge_document d ON d.id = c.document_id"""
-            ).fetchall()
+            rows = self._connection.execute(sql, params).fetchall()
 
         scored: list[tuple[int, KnowledgeChunk]] = []
         for row in rows:
@@ -168,6 +194,7 @@ class KnowledgeIndex:
                 heading=row["heading"] or "",
                 content=row["content"],
                 ordinal=row["ordinal"],
+                tags=tuple(t for t in (row["tags"] or "").split(",") if t),
             )
             score = _keyword_score(tokens, chunk.content)
             if score > 0:
@@ -184,17 +211,36 @@ def _split_markdown(title: str, text: str) -> list[tuple[str, str]]:
     """Split Markdown by H2 headings, propagating the document title."""
     sections = re.split(r"^## (.+)$", text, flags=re.MULTILINE)
     chunks: list[tuple[str, str]] = []
-    # sections[0] is everything before first H2
     preamble = sections[0].strip()
     if preamble:
         chunks.append((title, preamble))
-    # sections[1] = heading, sections[2] = body, ...
     for i in range(1, len(sections) - 1, 2):
         heading = sections[i].strip()
         body = sections[i + 1].strip()
         if body:
             chunks.append((heading, body))
     return chunks
+
+
+def _extract_title_and_tags(text: str) -> tuple[str, tuple[str, ...]]:
+    """Return the H1 title and a normalized tuple of tags."""
+    title = ""
+    match = re.search(r"^# (.+)$", text, re.MULTILINE)
+    if match:
+        title = match.group(1).strip()
+
+    tags: list[str] = []
+    tag_match = re.search(r"(?m)^tags\s*:\s*(.+)$", text)
+    if tag_match:
+        raw = tag_match.group(1).strip().strip("[]()")
+        tags = [t.strip() for t in re.split(r"[,，;；]", raw) if t.strip()]
+    return title, tuple(tags)
+
+
+def _strip_frontmatter(text: str) -> str:
+    """Remove simple ``tags:`` frontmatter lines before chunking."""
+    lines = [line for line in text.splitlines() if not re.match(r"^tags\s*:\s*", line)]
+    return "\n".join(lines)
 
 
 def _tokenize(text: str) -> list[str]:
@@ -222,4 +268,3 @@ def _keyword_score(tokens: list[str], content: str) -> int:
             score += 1
             pos += len(token)
     return score
-
