@@ -1,0 +1,228 @@
+[
+  {
+    "case": "产品介绍",
+    "terms": [
+      "产品介绍",
+      "系统能力",
+      "能做什么"
+    ],
+    "expected_hit": [
+      "product/overview",
+      "product/about",
+      "product/capabilities"
+    ],
+    "min_score": 3,
+    "baseline_old_hits": [
+      "faq.md",
+      "product.md",
+      "scenarios.md"
+    ]
+  },
+  {
+    "case": "获客引流",
+    "terms": [
+      "获客引流",
+      "线索",
+      "微信客服"
+    ],
+    "expected_hit": [
+      "product/lead-gen",
+      "product/capabilities",
+      "product/scenarios/education"
+    ],
+    "min_score": 4,
+    "baseline_old_hits": [
+      "capabilities.md",
+      "product.md",
+      "faq.md"
+    ]
+  },
+  {
+    "case": "电商售后",
+    "terms": [
+      "电商",
+      "售后",
+      "退换货",
+      "物流"
+    ],
+    "expected_hit": [
+      "product/scenarios/ecommerce",
+      "product/after-sales",
+      "product/scenarios"
+    ],
+    "min_score": 4,
+    "baseline_old_hits": [
+      "capabilities.md",
+      "product.md",
+      "scenarios.md"
+    ]
+  },
+  {
+    "case": "教育行业",
+    "terms": [
+      "教育",
+      "培训",
+      "获客"
+    ],
+    "expected_hit": [
+      "product/scenarios/education",
+      "product/scenarios",
+      "product/capabilities"
+    ],
+    "min_score": 2,
+    "baseline_old_hits": [
+      "capabilities.md",
+      "product.md",
+      "faq.md"
+    ]
+  },
+  {
+    "case": "FDE定义",
+    "terms": [
+      "FDE",
+      "定义",
+      "AI落地"
+    ],
+    "expected_hit": [
+      "fde",
+      "fde/definition",
+      "fde/capability-model"
+    ],
+    "min_score": 3,
+    "baseline_old_hits": [
+      "capabilities.md",
+      "implementation.md",
+      "pricing.md"
+    ]
+  },
+  {
+    "case": "AI落地难点",
+    "terms": [
+      "AI落地",
+      "难点",
+      "流程",
+      "数据"
+    ],
+    "expected_hit": [
+      "fde/ai-landing-difficulties",
+      "ai/employment",
+      "software-engineering/ai-impact"
+    ],
+    "min_score": 4,
+    "baseline_old_hits": [
+      "scenarios.md",
+      "capabilities.md",
+      "pricing.md"
+    ]
+  },
+  {
+    "case": "AI落地成本",
+    "terms": [
+      "成本",
+      "LLM",
+      "开发",
+      "运维"
+    ],
+    "expected_hit": [
+      "product/cost",
+      "product/consulting",
+      "software-engineering/human-month"
+    ],
+    "min_score": 2,
+    "baseline_old_hits": [
+      "pricing.md",
+      "pricing.md",
+      "capabilities.md"
+    ]
+  },
+  {
+    "case": "人月神话",
+    "terms": [
+      "人月神话",
+      "软件工程"
+    ],
+    "expected_hit": [
+      "software-engineering/human-month",
+      "software-engineering/ai-impact"
+    ],
+    "min_score": 2,
+    "baseline_old_hits": [
+      "pricing.md",
+      "scenarios.md",
+      "capabilities.md"
+    ]
+  },
+  {
+    "case": "AI对就业影响",
+    "terms": [
+      "AI",
+      "就业",
+      "分配",
+      "劳动市场"
+    ],
+    "expected_hit": [
+      "ai/employment",
+      "software-engineering/ai-impact",
+      "fde"
+    ],
+    "min_score": 4,
+    "baseline_old_hits": [
+      "capabilities.md",
+      "capabilities.md",
+      "capabilities.md"
+    ]
+  },
+  {
+    "case": "个人信息合规",
+    "terms": [
+      "个人信息",
+      "合规",
+      "数据"
+    ],
+    "expected_hit": [
+      "compliance/personal-information",
+      "compliance/generative-ai-regulation",
+      "fde/ai-landing-difficulties"
+    ],
+    "min_score": 3,
+    "baseline_old_hits": [
+      "implementation.md",
+      "capabilities.md",
+      "product.md"
+    ]
+  },
+  {
+    "case": "知识库问答",
+    "terms": [
+      "知识库",
+      "问答",
+      "文档",
+      "检索"
+    ],
+    "expected_hit": [
+      "product/knowledge-qa",
+      "product/capabilities"
+    ],
+    "min_score": 4,
+    "baseline_old_hits": [
+      "implementation.md",
+      "pricing.md",
+      "capabilities.md"
+    ]
+  },
+  {
+    "case": "数字花园维护",
+    "terms": [
+      "Synapse",
+      "数字花园",
+      "内容维护"
+    ],
+    "expected_hit": [],
+    "min_score": 0,
+    "baseline_old_hits": [
+      "pricing.md",
+      "pricing.md",
+      "capabilities.md"
+    ]
+  }
+]

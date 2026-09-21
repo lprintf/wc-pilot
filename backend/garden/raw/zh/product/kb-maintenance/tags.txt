@@ -1,0 +1,2 @@
+human:知识库维护,Markdown,Git,版本控制
+ai:增量更新,双向链接

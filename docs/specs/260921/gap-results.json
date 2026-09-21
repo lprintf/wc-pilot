@@ -1,0 +1,1260 @@
+[
+  {
+    "case": "产品介绍",
+    "terms": [
+      "产品介绍",
+      "系统能力",
+      "能做什么"
+    ],
+    "old": [
+      {
+        "path": "faq.md",
+        "heading": "这个系统能做什么？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "产品介绍：微信客服智能体",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "scenarios.md",
+        "heading": "SaaS / 互联网行业",
+        "tags": [
+          "场景",
+          "电商",
+          "教育",
+          "房产",
+          "医疗",
+          "零售"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "获客引流客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "售后客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "faq.md",
+        "heading": "lprintf 团队是谁？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "产品目标",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "系统能力与服务",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      }
+    ],
+    "new": []
+  },
+  {
+    "case": "获客引流",
+    "terms": [
+      "获客引流",
+      "线索",
+      "微信客服"
+    ],
+    "old": [
+      {
+        "path": "capabilities.md",
+        "heading": "获客引流客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "产品能做什么",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "faq.md",
+        "heading": "这个系统能做什么？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "售后客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "产品目标",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "scenarios.md",
+        "heading": "教育培训行业",
+        "tags": [
+          "场景",
+          "电商",
+          "教育",
+          "房产",
+          "医疗",
+          "零售"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "知识库问答",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "pricing.md",
+        "heading": "成本构成",
+        "tags": [
+          "定价",
+          "成本",
+          "方案"
+        ]
+      }
+    ],
+    "new": []
+  },
+  {
+    "case": "电商售后",
+    "terms": [
+      "电商",
+      "售后",
+      "退换货",
+      "物流"
+    ],
+    "old": [
+      {
+        "path": "capabilities.md",
+        "heading": "售后客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "如何体验",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "scenarios.md",
+        "heading": "电商行业",
+        "tags": [
+          "场景",
+          "电商",
+          "教育",
+          "房产",
+          "医疗",
+          "零售"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "产品能做什么",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "产品目标",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "faq.md",
+        "heading": "这个系统能做什么？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "获客引流客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "人工协同",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      }
+    ],
+    "new": []
+  },
+  {
+    "case": "教育行业",
+    "terms": [
+      "教育",
+      "培训",
+      "获客"
+    ],
+    "old": [
+      {
+        "path": "capabilities.md",
+        "heading": "获客引流客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "产品能做什么",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "faq.md",
+        "heading": "这个系统能做什么？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "产品目标",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "如何体验",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      }
+    ],
+    "new": [
+      {
+        "slug": "software-engineering/效率陷阱与全能幻觉",
+        "title": "AI 效率陷阱与全能幻觉",
+        "group": "default",
+        "score": 1,
+        "backlinks": 6
+      }
+    ]
+  },
+  {
+    "case": "FDE定义",
+    "terms": [
+      "FDE",
+      "定义",
+      "AI落地"
+    ],
+    "old": [
+      {
+        "path": "capabilities.md",
+        "heading": "数据分析与优化",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "implementation.md",
+        "heading": "阶段三：生产化",
+        "tags": [
+          "实施",
+          "交付",
+          "对接"
+        ]
+      },
+      {
+        "path": "pricing.md",
+        "heading": "成本构成",
+        "tags": [
+          "定价",
+          "成本",
+          "方案"
+        ]
+      },
+      {
+        "path": "pricing.md",
+        "heading": "量级分档（Demo 估算）",
+        "tags": [
+          "定价",
+          "成本",
+          "方案"
+        ]
+      }
+    ],
+    "new": [
+      {
+        "slug": "fde",
+        "title": "FDE",
+        "group": "default",
+        "score": 2,
+        "backlinks": 1
+      },
+      {
+        "slug": "software-engineering/效率陷阱与全能幻觉",
+        "title": "AI 效率陷阱与全能幻觉",
+        "group": "default",
+        "score": 2,
+        "backlinks": 6
+      },
+      {
+        "slug": "fde/深度与价值",
+        "title": "FDE 的深度与价值",
+        "group": "default",
+        "score": 2,
+        "backlinks": 1
+      },
+      {
+        "slug": "fde/AI落地难点",
+        "title": "AI 落地难点：先改流程，再接入模型",
+        "group": "default",
+        "score": 2,
+        "backlinks": 4
+      },
+      {
+        "slug": "ref/Alex Karp关于FDE的问题驱动交付视频",
+        "title": "Alex Karp 关于 FDE 的问题驱动交付视频",
+        "group": "default",
+        "score": 1,
+        "backlinks": 1
+      }
+    ]
+  },
+  {
+    "case": "AI落地难点",
+    "terms": [
+      "AI落地",
+      "难点",
+      "流程",
+      "数据"
+    ],
+    "old": [
+      {
+        "path": "scenarios.md",
+        "heading": "物流 / 快递行业",
+        "tags": [
+          "场景",
+          "电商",
+          "教育",
+          "房产",
+          "医疗",
+          "零售"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "售后客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "pricing.md",
+        "heading": "成本构成",
+        "tags": [
+          "定价",
+          "成本",
+          "方案"
+        ]
+      },
+      {
+        "path": "pricing.md",
+        "heading": "量级分档（Demo 估算）",
+        "tags": [
+          "定价",
+          "成本",
+          "方案"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "产品能做什么",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "获客引流客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "faq.md",
+        "heading": "lprintf 团队是谁？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "lprintf 团队",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      }
+    ],
+    "new": [
+      {
+        "slug": "fde/AI落地难点",
+        "title": "AI 落地难点：先改流程，再接入模型",
+        "group": "default",
+        "score": 3,
+        "backlinks": 4
+      },
+      {
+        "slug": "fde",
+        "title": "FDE",
+        "group": "default",
+        "score": 1,
+        "backlinks": 1
+      },
+      {
+        "slug": "software-engineering/效率陷阱与全能幻觉",
+        "title": "AI 效率陷阱与全能幻觉",
+        "group": "default",
+        "score": 1,
+        "backlinks": 6
+      },
+      {
+        "slug": "ai/AI与就业",
+        "title": "AI、就业与分配",
+        "group": "default",
+        "score": 1,
+        "backlinks": 3
+      },
+      {
+        "slug": "fde/深度与价值",
+        "title": "FDE 的深度与价值",
+        "group": "default",
+        "score": 1,
+        "backlinks": 1
+      }
+    ]
+  },
+  {
+    "case": "AI落地成本",
+    "terms": [
+      "成本",
+      "LLM",
+      "开发",
+      "运维"
+    ],
+    "old": [
+      {
+        "path": "pricing.md",
+        "heading": "成本构成",
+        "tags": [
+          "定价",
+          "成本",
+          "方案"
+        ]
+      },
+      {
+        "path": "pricing.md",
+        "heading": "量级分档（Demo 估算）",
+        "tags": [
+          "定价",
+          "成本",
+          "方案"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "获客引流客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "implementation.md",
+        "heading": "阶段二：小范围试点",
+        "tags": [
+          "实施",
+          "交付",
+          "对接"
+        ]
+      },
+      {
+        "path": "pricing.md",
+        "heading": "成本估算模型",
+        "tags": [
+          "定价",
+          "成本",
+          "方案"
+        ]
+      },
+      {
+        "path": "implementation.md",
+        "heading": "阶段一：PoC 验证",
+        "tags": [
+          "实施",
+          "交付",
+          "对接"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "售后客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "faq.md",
+        "heading": "怎么进入个人中心？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      }
+    ],
+    "new": [
+      {
+        "slug": "ref/lprintf（gopublic）/business-plan/data-support/cost-model",
+        "title": "成本测算口径",
+        "group": "default",
+        "score": 1,
+        "backlinks": 1
+      },
+      {
+        "slug": "software-engineering",
+        "title": "AI 对软件工程的影响",
+        "group": "default",
+        "score": 1,
+        "backlinks": 3
+      }
+    ]
+  },
+  {
+    "case": "人月神话",
+    "terms": [
+      "人月神话",
+      "软件工程"
+    ],
+    "old": [
+      {
+        "path": "pricing.md",
+        "heading": "量级分档（Demo 估算）",
+        "tags": [
+          "定价",
+          "成本",
+          "方案"
+        ]
+      },
+      {
+        "path": "scenarios.md",
+        "heading": "电商行业",
+        "tags": [
+          "场景",
+          "电商",
+          "教育",
+          "房产",
+          "医疗",
+          "零售"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "获客引流客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "售后客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "人工协同",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "implementation.md",
+        "heading": "阶段一：PoC 验证",
+        "tags": [
+          "实施",
+          "交付",
+          "对接"
+        ]
+      },
+      {
+        "path": "implementation.md",
+        "heading": "阶段二：小范围试点",
+        "tags": [
+          "实施",
+          "交付",
+          "对接"
+        ]
+      }
+    ],
+    "new": [
+      {
+        "slug": "software-engineering",
+        "title": "AI 对软件工程的影响",
+        "group": "default",
+        "score": 2,
+        "backlinks": 3
+      },
+      {
+        "slug": "fde/深度与价值",
+        "title": "FDE 的深度与价值",
+        "group": "default",
+        "score": 1,
+        "backlinks": 1
+      },
+      {
+        "slug": "software-engineering/效率陷阱与全能幻觉",
+        "title": "AI 效率陷阱与全能幻觉",
+        "group": "default",
+        "score": 1,
+        "backlinks": 6
+      }
+    ]
+  },
+  {
+    "case": "AI对就业影响",
+    "terms": [
+      "AI",
+      "就业",
+      "分配",
+      "劳动市场"
+    ],
+    "old": [
+      {
+        "path": "capabilities.md",
+        "heading": "人工协同",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "售后客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "知识库问答",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "faq.md",
+        "heading": "这个系统能做什么？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "一句话定位",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "产品能做什么",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "获客引流客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "faq.md",
+        "heading": "lprintf 团队是谁？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      }
+    ],
+    "new": [
+      {
+        "slug": "ai/AI与就业",
+        "title": "AI、就业与分配",
+        "group": "default",
+        "score": 4,
+        "backlinks": 3
+      },
+      {
+        "slug": "ref/ILO生成式AI与就业全球分析",
+        "title": "ILO 生成式 AI 与就业全球分析",
+        "group": "default",
+        "score": 2,
+        "backlinks": 1
+      },
+      {
+        "slug": "ref/IMF人工智能与工作的未来",
+        "title": "IMF 人工智能与工作的未来",
+        "group": "default",
+        "score": 2,
+        "backlinks": 1
+      },
+      {
+        "slug": "fde",
+        "title": "FDE",
+        "group": "default",
+        "score": 1,
+        "backlinks": 1
+      },
+      {
+        "slug": "ref/个人信息保护法",
+        "title": "个人信息保护法",
+        "group": "default",
+        "score": 1,
+        "backlinks": 2
+      }
+    ]
+  },
+  {
+    "case": "个人信息合规",
+    "terms": [
+      "个人信息",
+      "合规",
+      "数据"
+    ],
+    "old": [
+      {
+        "path": "implementation.md",
+        "heading": "阶段一：PoC 验证",
+        "tags": [
+          "实施",
+          "交付",
+          "对接"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "获客引流客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "产品能做什么",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "scenarios.md",
+        "heading": "电商行业",
+        "tags": [
+          "场景",
+          "电商",
+          "教育",
+          "房产",
+          "医疗",
+          "零售"
+        ]
+      },
+      {
+        "path": "implementation.md",
+        "heading": "阶段二：小范围试点",
+        "tags": [
+          "实施",
+          "交付",
+          "对接"
+        ]
+      },
+      {
+        "path": "faq.md",
+        "heading": "数据安全吗？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "售后客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "implementation.md",
+        "heading": "阶段三：生产化",
+        "tags": [
+          "实施",
+          "交付",
+          "对接"
+        ]
+      }
+    ],
+    "new": [
+      {
+        "slug": "ref/个人信息保护法",
+        "title": "个人信息保护法",
+        "group": "default",
+        "score": 3,
+        "backlinks": 2
+      },
+      {
+        "slug": "ref/lprintf（gopublic）/web-renaissance",
+        "title": "Web复兴产业趋势合规分析报告——基于存量底盘韧性与新一代开放媒体增量潜力",
+        "group": "default",
+        "score": 2,
+        "backlinks": 1
+      },
+      {
+        "slug": "ref/lprintf（gopublic）/business-plan/data-support",
+        "title": "GoPublic BP 数据支撑目录",
+        "group": "default",
+        "score": 2,
+        "backlinks": 1
+      },
+      {
+        "slug": "ref/lprintf（gopublic）/business-plan/data-support/compliance",
+        "title": "合规流程与发布时间依据",
+        "group": "default",
+        "score": 2,
+        "backlinks": 1
+      },
+      {
+        "slug": "ref/lprintf（gopublic）/zero-trust-mainline",
+        "title": "零信任服务主线",
+        "group": "default",
+        "score": 1,
+        "backlinks": 2
+      }
+    ]
+  },
+  {
+    "case": "知识库问答",
+    "terms": [
+      "知识库",
+      "问答",
+      "文档",
+      "检索"
+    ],
+    "old": [
+      {
+        "path": "implementation.md",
+        "heading": "阶段一：PoC 验证",
+        "tags": [
+          "实施",
+          "交付",
+          "对接"
+        ]
+      },
+      {
+        "path": "pricing.md",
+        "heading": "成本构成",
+        "tags": [
+          "定价",
+          "成本",
+          "方案"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "售后客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "faq.md",
+        "heading": "AI 客服会编造答案吗？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      },
+      {
+        "path": "pricing.md",
+        "heading": "优化建议",
+        "tags": [
+          "定价",
+          "成本",
+          "方案"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "产品能做什么",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      },
+      {
+        "path": "scenarios.md",
+        "heading": "电商行业",
+        "tags": [
+          "场景",
+          "电商",
+          "教育",
+          "房产",
+          "医疗",
+          "零售"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "知识库问答",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      }
+    ],
+    "new": [
+      {
+        "slug": "synapse",
+        "title": "Synapse 数字花园",
+        "group": "default",
+        "score": 1,
+        "backlinks": 0
+      }
+    ]
+  },
+  {
+    "case": "数字花园维护",
+    "terms": [
+      "Synapse",
+      "数字花园",
+      "内容维护"
+    ],
+    "old": [
+      {
+        "path": "pricing.md",
+        "heading": "成本构成",
+        "tags": [
+          "定价",
+          "成本",
+          "方案"
+        ]
+      },
+      {
+        "path": "pricing.md",
+        "heading": "量级分档（Demo 估算）",
+        "tags": [
+          "定价",
+          "成本",
+          "方案"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "售后客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "capabilities.md",
+        "heading": "获客引流客服",
+        "tags": [
+          "能力",
+          "获客引流",
+          "售后",
+          "知识库问答",
+          "人工协同"
+        ]
+      },
+      {
+        "path": "faq.md",
+        "heading": "数据安全吗？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      },
+      {
+        "path": "faq.md",
+        "heading": "这个系统能做什么？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      },
+      {
+        "path": "faq.md",
+        "heading": "AI 客服会编造答案吗？",
+        "tags": [
+          "FAQ",
+          "常见问题"
+        ]
+      },
+      {
+        "path": "product.md",
+        "heading": "产品能做什么",
+        "tags": [
+          "产品介绍",
+          "获客引流",
+          "售后",
+          "咨询",
+          "客户关系"
+        ]
+      }
+    ],
+    "new": [
+      {
+        "slug": "synapse/content-maintenance",
+        "title": "数字花园内容维护",
+        "group": "default",
+        "score": 2,
+        "backlinks": 4
+      },
+      {
+        "slug": "synapse",
+        "title": "Synapse 数字花园",
+        "group": "default",
+        "score": 2,
+        "backlinks": 0
+      },
+      {
+        "slug": "synapse/features",
+        "title": "Synapse 项目亮点",
+        "group": "default",
+        "score": 1,
+        "backlinks": 2
+      },
+      {
+        "slug": "synapse/linking",
+        "title": "双向链接与知识图谱",
+        "group": "default",
+        "score": 1,
+        "backlinks": 2
+      },
+      {
+        "slug": "synapse/publish",
+        "title": "数字花园运行与发布",
+        "group": "default",
+        "score": 1,
+        "backlinks": 3
+      }
+    ]
+  }
+]

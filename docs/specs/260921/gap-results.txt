@@ -1,0 +1,141 @@
+--- 产品介绍 (terms: 产品介绍, 系统能力, 能做什么) ---
+OLD:
+  faq.md | 这个系统能做什么？
+  product.md | 产品介绍：微信客服智能体
+  scenarios.md | SaaS / 互联网行业
+  capabilities.md | 获客引流客服
+  capabilities.md | 售后客服
+NEW:
+  (none)
+
+--- 获客引流 (terms: 获客引流, 线索, 微信客服) ---
+OLD:
+  capabilities.md | 获客引流客服
+  product.md | 产品能做什么
+  faq.md | 这个系统能做什么？
+  capabilities.md | 售后客服
+  product.md | 产品目标
+NEW:
+  (none)
+
+--- 电商售后 (terms: 电商, 售后, 退换货, 物流) ---
+OLD:
+  capabilities.md | 售后客服
+  product.md | 如何体验
+  scenarios.md | 电商行业
+  product.md | 产品能做什么
+  product.md | 产品目标
+NEW:
+  (none)
+
+--- 教育行业 (terms: 教育, 培训, 获客) ---
+OLD:
+  capabilities.md | 获客引流客服
+  product.md | 产品能做什么
+  faq.md | 这个系统能做什么？
+  product.md | 产品目标
+  product.md | 如何体验
+NEW:
+  software-engineering/效率陷阱与全能幻觉 | AI 效率陷阱与全能幻觉 | score=1 back=6
+
+--- FDE定义 (terms: FDE, 定义, AI落地) ---
+OLD:
+  capabilities.md | 数据分析与优化
+  implementation.md | 阶段三：生产化
+  pricing.md | 成本构成
+  pricing.md | 量级分档（Demo 估算）
+NEW:
+  fde | FDE | score=2 back=1
+  software-engineering/效率陷阱与全能幻觉 | AI 效率陷阱与全能幻觉 | score=2 back=6
+  fde/深度与价值 | FDE 的深度与价值 | score=2 back=1
+  fde/AI落地难点 | AI 落地难点：先改流程，再接入模型 | score=2 back=4
+  ref/Alex Karp关于FDE的问题驱动交付视频 | Alex Karp 关于 FDE 的问题驱动交付视频 | score=1 back=1
+
+--- AI落地难点 (terms: AI落地, 难点, 流程, 数据) ---
+OLD:
+  scenarios.md | 物流 / 快递行业
+  capabilities.md | 售后客服
+  pricing.md | 成本构成
+  pricing.md | 量级分档（Demo 估算）
+  product.md | 产品能做什么
+NEW:
+  fde/AI落地难点 | AI 落地难点：先改流程，再接入模型 | score=3 back=4
+  fde | FDE | score=1 back=1
+  software-engineering/效率陷阱与全能幻觉 | AI 效率陷阱与全能幻觉 | score=1 back=6
+  ai/AI与就业 | AI、就业与分配 | score=1 back=3
+  fde/深度与价值 | FDE 的深度与价值 | score=1 back=1
+
+--- AI落地成本 (terms: 成本, LLM, 开发, 运维) ---
+OLD:
+  pricing.md | 成本构成
+  pricing.md | 量级分档（Demo 估算）
+  capabilities.md | 获客引流客服
+  implementation.md | 阶段二：小范围试点
+  pricing.md | 成本估算模型
+NEW:
+  ref/lprintf（gopublic）/business-plan/data-support/cost-model | 成本测算口径 | score=1 back=1
+  software-engineering | AI 对软件工程的影响 | score=1 back=3
+
+--- 人月神话 (terms: 人月神话, 软件工程) ---
+OLD:
+  pricing.md | 量级分档（Demo 估算）
+  scenarios.md | 电商行业
+  capabilities.md | 获客引流客服
+  capabilities.md | 售后客服
+  capabilities.md | 人工协同
+NEW:
+  software-engineering | AI 对软件工程的影响 | score=2 back=3
+  fde/深度与价值 | FDE 的深度与价值 | score=1 back=1
+  software-engineering/效率陷阱与全能幻觉 | AI 效率陷阱与全能幻觉 | score=1 back=6
+
+--- AI对就业影响 (terms: AI, 就业, 分配, 劳动市场) ---
+OLD:
+  capabilities.md | 人工协同
+  capabilities.md | 售后客服
+  capabilities.md | 知识库问答
+  faq.md | 这个系统能做什么？
+  product.md | 一句话定位
+NEW:
+  ai/AI与就业 | AI、就业与分配 | score=4 back=3
+  ref/ILO生成式AI与就业全球分析 | ILO 生成式 AI 与就业全球分析 | score=2 back=1
+  ref/IMF人工智能与工作的未来 | IMF 人工智能与工作的未来 | score=2 back=1
+  fde | FDE | score=1 back=1
+  ref/个人信息保护法 | 个人信息保护法 | score=1 back=2
+
+--- 个人信息合规 (terms: 个人信息, 合规, 数据) ---
+OLD:
+  implementation.md | 阶段一：PoC 验证
+  capabilities.md | 获客引流客服
+  product.md | 产品能做什么
+  scenarios.md | 电商行业
+  implementation.md | 阶段二：小范围试点
+NEW:
+  ref/个人信息保护法 | 个人信息保护法 | score=3 back=2
+  ref/lprintf（gopublic）/web-renaissance | Web复兴产业趋势合规分析报告——基于存量底盘韧性与新一代开放媒体增量潜力 | score=2 back=1
+  ref/lprintf（gopublic）/business-plan/data-support | GoPublic BP 数据支撑目录 | score=2 back=1
+  ref/lprintf（gopublic）/business-plan/data-support/compliance | 合规流程与发布时间依据 | score=2 back=1
+  ref/lprintf（gopublic）/zero-trust-mainline | 零信任服务主线 | score=1 back=2
+
+--- 知识库问答 (terms: 知识库, 问答, 文档, 检索) ---
+OLD:
+  implementation.md | 阶段一：PoC 验证
+  pricing.md | 成本构成
+  capabilities.md | 售后客服
+  faq.md | AI 客服会编造答案吗？
+  pricing.md | 优化建议
+NEW:
+  synapse | Synapse 数字花园 | score=1 back=0
+
+--- 数字花园维护 (terms: Synapse, 数字花园, 内容维护) ---
+OLD:
+  pricing.md | 成本构成
+  pricing.md | 量级分档（Demo 估算）
+  capabilities.md | 售后客服
+  capabilities.md | 获客引流客服
+  faq.md | 数据安全吗？
+NEW:
+  synapse/content-maintenance | 数字花园内容维护 | score=2 back=4
+  synapse | Synapse 数字花园 | score=2 back=0
+  synapse/features | Synapse 项目亮点 | score=1 back=2
+  synapse/linking | 双向链接与知识图谱 | score=1 back=2
+  synapse/publish | 数字花园运行与发布 | score=1 back=3
