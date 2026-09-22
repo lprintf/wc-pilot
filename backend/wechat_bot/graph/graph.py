@@ -7,18 +7,18 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, trim_messages
 from langchain_core.tools import tool as langchain_tool
 from langgraph.graph import END, START, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
+from wechat_bot.garden import GardenKnowledgeSource
 from wechat_bot.graph.intents import Intent
-from wechat_bot.graph.knowledge import KnowledgeIndex
 from wechat_bot.graph.state import CustomerServiceState
 
 LOGGER = logging.getLogger(__name__)
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent / "prompts"
-FALLBACK_REPLY = "\u62b1\u6b49\uff0c\u667a\u80fd\u5ba2\u670d\u6682\u65f6\u65e0\u6cd5\u56de\u7b54\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002"
+FALLBACK_REPLY = "抱歉，智能客服暂时无法回答，请稍后再试。"
 
 
 def _load_prompt(name: str) -> str:
@@ -28,29 +28,52 @@ def _load_prompt(name: str) -> str:
     return ""
 
 
-def _make_tools(knowledge_index):
+def _make_tools(garden):
     @langchain_tool
-    def search_knowledge(query: str, tags: str = "") -> str:
-        """\u68c0\u7d22\u77e5\u8bc6\u5e93\u3002query \u7528 3-5 \u4e2a\u5173\u952e\u8bcd\uff0c\u7a7a\u683c\u5206\u9694\uff1btags \u53ef\u4f20\u4e1a\u52a1\u6807\u7b7e\uff0c\u9017\u53f7\u5206\u9694\uff08\u5982 \u4ea7\u54c1\u4ecb\u7ecd,\u83b7\u5ba2\u5f15\u6d41\uff09\u3002"""
-        if knowledge_index is None:
-            return "\u77e5\u8bc6\u5e93\u4e0d\u53ef\u7528\u3002"
-        tag_list = [t.strip() for t in tags.replace("\uff0c", ",").split(",") if t.strip()]
-        chunks = knowledge_index.search(query, top_n=3, tags=tag_list or None)
-        if not chunks:
-            return "\u6ca1\u6709\u627e\u5230\u76f8\u5173\u5185\u5bb9\u3002"
-        return "\n\n".join(f"{c.source_label}\n{c.content}" for c in chunks)
+    def search_garden(query: str, tags: str = "") -> str:
+        """检索数字花园。query 用 3-5 个关键词空格分隔；tags 可传业务标签，逗号分隔（如 产品介绍,获客引流）。"""
+        if garden is None:
+            return "知识库不可用。"
+        tag_list = [t.strip() for t in tags.replace("，", ",").split(",") if t.strip()]
+        hits = garden.search(query, top_n=3, tags=tag_list or None)
+        if not hits:
+            return "没有找到相关内容。"
+        lines = []
+        for h in hits:
+            lines.append(
+                f"标题：{h.title}\n"
+                f"来源：{h.slug}\n"
+                f"标签：{', '.join(h.tags[:8])}\n"
+                f"相关文章：{', '.join(h.outgoing[:5])}\n"
+                f"被引用：{h.backlink_count} 篇"
+            )
+        return "\n---\n".join(lines)
+
+    @langchain_tool
+    def read_garden_note(slug: str) -> str:
+        """读取数字花园中一篇文章的全文。slug 如 product/overview。"""
+        if garden is None:
+            return "知识库不可用。"
+        body = garden.read_note(slug)
+        if body is None:
+            return f"未找到文章：{slug}"
+        node = garden._nodes.get(slug)
+        header = f"来源：{slug}"
+        if node and node.title:
+            header = f"标题：{node.title}\n来源：{slug}"
+        return f"{header}\n\n{body}"
 
     @langchain_tool
     def record_business_fact(field: str, value: str) -> str:
-        """\u8bb0\u5f55\u5ba2\u6237\u900f\u9732\u7684\u4e00\u9879\u4e1a\u52a1\u4fe1\u606f\u3002field \u662f\u5b57\u6bb5\u540d\uff08\u5982 industry/channel/pain/goal\uff09\uff0cvalue \u662f\u5185\u5bb9\u3002"""
-        return f"\u5df2\u8bb0\u5f55 {field}\uff1a{value}"
+        """记录客户透露的一项业务信息。field 是字段名（如 industry/channel/pain/goal），value 是内容。"""
+        return f"已记录 {field}：{value}"
 
     @langchain_tool
     def escalate_to_human(reason: str) -> str:
-        """\u5f53\u5ba2\u6237\u660e\u786e\u8868\u8fbe\u9700\u8981\u4eba\u5de5\u8ddf\u8fdb\u7684\u610f\u56fe\u65f6\u8c03\u7528\uff0c\u751f\u6210\u660e\u786e CTA\u3002"""
-        return "\u597d\u7684\uff0c\u6211\u5df2\u7ecf\u8bb0\u5f55\u4f60\u7684\u9700\u6c42\u3002\u63a5\u4e0b\u6765\u53ef\u4ee5\u5b89\u6392\u4e00\u6b21\u4ea7\u54c1\u6f14\u793a\u6216\u5546\u52a1\u6c9f\u901a\uff0c\u4eba\u5de5\u5ba2\u670d\u4f1a\u7ee7\u7eed\u8ddf\u8fdb\u3002"
+        """当客户明确表达需要人工跟进的意图时调用，生成明确 CTA。"""
+        return "好的，我已经记录你的需求。接下来可以安排一次产品演示或商务沟通，人工客服会继续跟进。"
 
-    return [search_knowledge, record_business_fact, escalate_to_human]
+    return [search_garden, read_garden_note, record_business_fact, escalate_to_human]
 
 
 def _intent_from_tool_calls(messages: list[Any]) -> str:
@@ -63,9 +86,9 @@ def _intent_from_tool_calls(messages: list[Any]) -> str:
                 tool_seen.add(name)
     if "escalate_to_human" in tool_seen:
         return str(Intent.HUMAN_HANDOFF)
-    if "search_knowledge" in tool_seen and "record_business_fact" in tool_seen:
+    if "search_garden" in tool_seen and "record_business_fact" in tool_seen:
         return str(Intent.BUSINESS_DISCOVERY)
-    if "search_knowledge" in tool_seen:
+    if "search_garden" in tool_seen or "read_garden_note" in tool_seen:
         return str(Intent.KNOWLEDGE_QA)
     if "record_business_fact" in tool_seen:
         return str(Intent.BUSINESS_DISCOVERY)
@@ -78,6 +101,24 @@ def _build_agent_model(model, tools):
     return model.bind_tools(tools)
 
 
+def _trim_history(messages, model):
+    """Keep recent context within a token budget."""
+    if not messages:
+        return messages
+    try:
+        return trim_messages(
+            messages,
+            max_tokens=6000,
+            strategy="last",
+            token_counter=model,
+            include_system=False,
+            start_on="human",
+        )
+    except Exception:
+        LOGGER.debug("trim_messages failed, using full history", exc_info=True)
+        return messages
+
+
 async def _agent(state, model_bound):
     """Agent node: calls the bound model with system prompt and message history."""
     if model_bound is None:
@@ -88,13 +129,14 @@ async def _agent(state, model_bound):
     system_text = _load_prompt("customer_service.md")
     profile = state.get("business_profile") or {}
     if profile:
-        system_text += f"\n\n\u5f53\u524d\u4e1a\u52a1\u753b\u50cf\uff1a\n{json.dumps(profile, ensure_ascii=False, indent=2)}"
-    round_num = state.get("conversation_round") or 0
-    if round_num:
-        system_text += f"\n\n\u5f53\u524d\u662f\u7b2c {round_num} \u8f6e\u5bf9\u8bdd\u3002\n\n\u53ef\u4ee5\u4f7f\u7528\u5de5\u5177\uff1asearch_knowledge\u3001record_business_fact\u3001escalate_to_human\u3002"
+        system_text += f"\n\n当前业务画像：\n{json.dumps(profile, ensure_ascii=False, indent=2)}"
+
+    history = list(state.get("messages") or [])
+    if history:
+        history = _trim_history(history, model_bound)
 
     messages = [SystemMessage(content=system_text)]
-    messages.extend(state.get("messages") or [])
+    messages.extend(history)
 
     try:
         response = await model_bound.ainvoke(messages)
@@ -184,7 +226,7 @@ def _finalize_reply(state: CustomerServiceState) -> dict[str, object]:
 
 def build_graph(
     *,
-    knowledge_index: KnowledgeIndex | None = None,
+    garden: GardenKnowledgeSource | None = None,
     model: Any = None,
     checkpointer: Any = None,
 ):
@@ -193,7 +235,7 @@ def build_graph(
     The graph handles tool-calling cycles (agent -> tools -> agent)
     followed by a finalize step that extracts reply text and business state.
     """
-    tools = _make_tools(knowledge_index)
+    tools = _make_tools(garden)
     model_bound = _build_agent_model(model, tools)
 
     async def agent_wrapper(state: CustomerServiceState) -> dict[str, object]:

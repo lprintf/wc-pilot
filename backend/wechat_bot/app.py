@@ -26,7 +26,7 @@ from wechat_bot.callback import (
 )
 from wechat_bot.config import Settings
 from wechat_bot.graph.graph import build_graph
-from wechat_bot.graph.knowledge import KnowledgeIndex
+from wechat_bot.garden import GardenKnowledgeSource
 from wechat_bot.crypto import CallbackCryptoError, WeComCallbackCrypto
 from wechat_bot.llm import OpenAICompatibleLLM, build_chat_model
 from wechat_bot.service import CustomerServiceProcessor
@@ -48,14 +48,12 @@ class Runtime:
         self.auth = AuthManager(self.store, settings.public_base_url)
         self.wecom = WeComClient(settings.corp_id, settings.app_agent_secret)
         self.llm = build_chat_model(settings.llm)
-        self.knowledge_index = KnowledgeIndex(
-            settings.database_path.with_name("knowledge.db")
-        )
+        self.garden = GardenKnowledgeSource()
         checkpoint_path = settings.database_path.with_name("graph_checkpoint.db")
         self._checkpoint_connection = aiosqlite.connect(str(checkpoint_path))
         self._checkpointer = AsyncSqliteSaver(self._checkpoint_connection)
         self.graph = build_graph(
-            knowledge_index=self.knowledge_index,
+            garden=self.garden,
             model=self.llm,
             checkpointer=self._checkpointer,
         )
@@ -88,11 +86,7 @@ class Runtime:
         return not self.errors and bool(self.processor.managed_open_kfid)
 
     async def start(self) -> None:
-        try:
-            chunk_count = self.knowledge_index.reindex()
-            LOGGER.info("knowledge index ready: chunks=%d", chunk_count)
-        except Exception:
-            LOGGER.warning("knowledge index reindex failed; continuing without KB", exc_info=True)
+        LOGGER.info("digital garden ready: nodes=%d", self.garden.node_count)
         if not await self._initialize():
             self._initialization_task = asyncio.create_task(self._retry_initialization())
 
