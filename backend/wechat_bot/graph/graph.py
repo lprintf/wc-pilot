@@ -33,7 +33,7 @@ def _load_prompt(name: str) -> str:
 def _make_tools(garden):
     @langchain_tool
     def search_garden(query: str, tags: str = "") -> str:
-        """检索数字花园。query 用 3-5 个关键词空格分隔；tags 可传业务标签，逗号分隔（如 产品介绍,获客引流）。"""
+        """检索数字花园知识库。将客户原话联想为精炼关键词，不要原样粘贴。“你们做什么”→ 产品 能力；“介绍一下产品”→ 产品介绍 系统能力；“你们公司”→ 团队 能力；“产品资料”→ 产品介绍 能力。检索不到相关结果时，换个角度精炼关键词重试，不要编造。"""
         if garden is None:
             return "知识库不可用。"
         tag_list = [t.strip() for t in tags.replace("，", ",").split(",") if t.strip()]
@@ -53,7 +53,7 @@ def _make_tools(garden):
 
     @langchain_tool
     def read_garden_note(slug: str) -> str:
-        """读取数字花园中一篇文章的全文。slug 如 product/overview。"""
+        """读取数字花园某篇文章全文。slug 为 search_garden 返回的来源路径，例如 product/overview。只在确认搜到相关文章后再读取全文。"""
         if garden is None:
             return "知识库不可用。"
         body = garden.read_note(slug)
