@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -19,6 +20,7 @@ from wechat_bot.graph.state import CustomerServiceState
 LOGGER = logging.getLogger(__name__)
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent / "prompts"
 FALLBACK_REPLY = "抱歉，智能客服暂时无法回答，请稍后再试。"
+UPSTREAM_REPLY = "抱歉，AI 服务暂时繁忙，请稍后再试。"
 
 
 def _load_prompt(name: str) -> str:
@@ -119,6 +121,47 @@ def _trim_history(messages, model):
         return messages
 
 
+
+_LLM_MAX_RETRIES = 2
+_LLM_BACKOFF_SECONDS = (0.5, 1.5)
+
+
+def _is_transient_llm_error(exc: Exception) -> bool:
+    """Return True for retryable LLM provider errors (rate limit / gateway / timeout)."""
+    name = type(exc).__name__.lower()
+    text = str(exc).lower()
+    if any(k in name for k in ("ratelimit", "timeout", "connection", "apierror")):
+        return True
+    return any(
+        k in text
+        for k in ("502", "503", "504", "429", "upstream", "temporarily unavailable", "bad gateway")
+    )
+
+
+async def _invoke_with_retry(model_bound, messages):
+    """Call the model, retrying transient upstream errors with backoff."""
+    last_exc: Exception | None = None
+    for attempt in range(_LLM_MAX_RETRIES + 1):
+        try:
+            return await model_bound.ainvoke(messages)
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= _LLM_MAX_RETRIES or not _is_transient_llm_error(exc):
+                raise
+            delay = _LLM_BACKOFF_SECONDS[attempt]
+            LOGGER.warning(
+                "agent LLM transient error, retrying in %.2fs (attempt %d/%d): %s",
+                delay,
+                attempt + 1,
+                _LLM_MAX_RETRIES,
+                exc,
+            )
+            await asyncio.sleep(delay)
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("model invocation failed without exception")
+
+
 async def _agent(state, model_bound):
     """Agent node: calls the bound model with system prompt and message history."""
     if model_bound is None:
@@ -139,8 +182,14 @@ async def _agent(state, model_bound):
     messages.extend(history)
 
     try:
-        response = await model_bound.ainvoke(messages)
-    except Exception:
+        response = await _invoke_with_retry(model_bound, messages)
+    except Exception as exc:
+        if _is_transient_llm_error(exc):
+            LOGGER.error("agent LLM call failed (upstream unavailable): %s", exc)
+            return {
+                "messages": [AIMessage(content=UPSTREAM_REPLY)],
+                "error": "upstream_unavailable",
+            }
         LOGGER.exception("agent LLM call failed")
         return {
             "messages": [AIMessage(content=FALLBACK_REPLY)],
