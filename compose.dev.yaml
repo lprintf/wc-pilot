@@ -13,8 +13,15 @@ services:
       - --reload
       - --reload-dir
       - /app/wechat_bot
+      - --reload-dir
+      - /app/garden
+      - --reload-dir
+      - /app/prompts
     volumes:
       - ./backend/wechat_bot:/app/wechat_bot:ro
+      - ./backend/garden:/app/garden:ro
+      - ./backend/prompts:/app/prompts:ro
+      - ./backend/skills:/app/skills:ro
       - ./backend/scripts:/app/scripts:ro
       - ./backend/tests:/app/tests:ro
       - ./backend/main.py:/app/main.py:ro

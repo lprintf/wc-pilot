@@ -12,6 +12,9 @@ RUN uv sync --frozen --no-dev
 
 COPY main.py ./
 COPY wechat_bot ./wechat_bot
+COPY garden ./garden
+COPY prompts ./prompts
+COPY skills ./skills
 
 RUN mkdir -p /app/data && chown -R nobody:nogroup /app
 

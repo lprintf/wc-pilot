@@ -41,8 +41,10 @@ class GardenKnowledgeSource:
 
     def __init__(self, garden_root: Path | None = None) -> None:
         if garden_root is None:
-            root = Path(__file__).resolve().parents[2]
-            self._root = root / "backend" / "garden" / "raw" / "zh"
+            # garden data lives at <repo>/backend/garden/raw/zh
+            # wechat_bot/ -> backend/ -> garden/raw/zh
+            pkg_dir = Path(__file__).resolve().parent  # .../wechat_bot
+            self._root = pkg_dir.parent / "garden" / "raw" / "zh"
         else:
             self._root = Path(garden_root)
         self._nodes: dict[str, _Node] = {}
