@@ -109,6 +109,29 @@ class GardenKnowledgeSource:
     def node_count(self) -> int:
         return len(self._nodes)
 
+    @staticmethod
+    def _expand_query_terms(query: str) -> list[str]:
+        """Split query into keyword terms, adding CJK character bigrams.
+
+        Chinese has no whitespace, so a query like "产品资料" is a single
+        token. Bigram expansion lets it still match tags such as "产品介绍"
+        through the shared "产品" substring.
+        """
+        raw_terms = [t.strip().lower() for t in query.split() if t.strip()]
+        terms: list[str] = []
+        for token in raw_terms:
+            if token not in terms:
+                terms.append(token)
+            for i in range(len(token) - 1):
+                a = token[i]
+                b = token[i + 1]
+                if "\u4e00" <= a <= "\u9fff" and "\u4e00" <= b <= "\u9fff":
+                    gram = a + b
+                    if gram not in terms:
+                        terms.append(gram)
+        return terms
+
+
     def search(
         self,
         query: str,
@@ -121,7 +144,7 @@ class GardenKnowledgeSource:
         ``tags`` filters results to nodes that contain any of the given tags.
         Returns hits ranked by keyword match count, with metadata only (no body).
         """
-        terms = [t.strip().lower() for t in query.split() if t.strip()]
+        terms = self._expand_query_terms(query)
         if not terms:
             return []
 

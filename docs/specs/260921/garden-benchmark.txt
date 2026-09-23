@@ -1,14 +1,19 @@
 --- 产品介绍 (terms: 产品介绍, 系统能力, 能做什么) ---
-  product/overview :: 产品介绍：微信客服智能体 :: score=1 back=4
+  product/overview :: 产品介绍：微信客服智能体 :: score=4 back=4
+  fde/capability-model :: FDE 能力模型 :: score=1 back=2
+  product/scenarios/saas :: SaaS 互联网行业 :: score=1 back=0
   product/about :: lprintf 团队 :: score=1 back=3
-  product/capabilities :: 系统能力总览 :: score=1 back=6
+  product/capabilities :: 系统能力总览 :: score=3 back=6
+  product/scenarios/logistics :: 物流快递行业 :: score=1 back=0
 
 --- 获客引流 (terms: 获客引流, 线索, 微信客服) ---
-  product/capabilities :: 系统能力总览 :: score=1 back=6
-  product/lead-gen :: 获客引流客服 :: score=1 back=8
-  product/scenarios/education :: 教育培训行业 :: score=1 back=0
+  product/capabilities :: 系统能力总览 :: score=4 back=6
+  product/lead-gen :: 获客引流客服 :: score=4 back=8
   product/wechat-ecosystem :: 微信生态合规获客 :: score=1 back=1
-  product/overview :: 产品介绍：微信客服智能体 :: score=1 back=4
+  product/scenarios/education :: 教育培训行业 :: score=1 back=0
+  product/overview :: 产品介绍：微信客服智能体 :: score=4 back=4
+  product/multi-platform :: 多平台统一接入 :: score=1 back=1
+  product/about :: lprintf 团队 :: score=1 back=3
 
 --- 电商售后 (terms: 电商, 售后, 退换货, 物流) ---
   product/scenarios/ecommerce :: 电商行业 :: score=1 back=0
@@ -30,16 +35,16 @@
   fde/ecosystem :: FDE 生态 :: score=1 back=1
   fde/enterprise-landing :: FDE 企业落地方案 :: score=1 back=4
   fde :: FDE 概述 :: score=1 back=0
+  product/consulting :: 业务咨询与落地评估 :: score=3 back=16
+  fde/ai-landing-difficulties :: AI 落地难点 :: score=2 back=5
   ai/employment :: AI、就业与分配 :: score=1 back=0
-  software-engineering/ai-impact :: AI 对软件工程的影响 :: score=1 back=1
-  fde/ai-landing-difficulties :: AI 落地难点 :: score=1 back=5
 
 --- AI落地难点 (terms: AI落地, 难点, 流程, 数据) ---
+  product/consulting :: 业务咨询与落地评估 :: score=3 back=16
+  fde/ai-landing-difficulties :: AI 落地难点 :: score=2 back=5
+  fde :: FDE 概述 :: score=2 back=0
   ai/employment :: AI、就业与分配 :: score=1 back=0
   software-engineering/ai-impact :: AI 对软件工程的影响 :: score=1 back=1
-  fde/ai-landing-difficulties :: AI 落地难点 :: score=1 back=5
-  fde :: FDE 概述 :: score=1 back=0
-  product/consulting :: 业务咨询与落地评估 :: score=1 back=16
   compliance/personal-information :: 个人信息保护与数据合规 :: score=1 back=3
   product/after-sales :: 售后客服 :: score=1 back=9
   product/lead-gen :: 获客引流客服 :: score=1 back=8
@@ -51,8 +56,11 @@
   software-engineering/ai-impact :: AI 对软件工程的影响 :: score=1 back=1
 
 --- 人月神话 (terms: 人月神话, 软件工程) ---
-  software-engineering/human-month :: 人月神话 :: score=1 back=1
-  software-engineering/ai-impact :: AI 对软件工程的影响 :: score=1 back=1
+  software-engineering/human-month :: 人月神话 :: score=5 back=1
+  software-engineering/ai-impact :: AI 对软件工程的影响 :: score=7 back=1
+  fde/problem-driven-delivery :: FDE 的问题驱动交付 :: score=1 back=2
+  fde/capability-model :: FDE 能力模型 :: score=1 back=2
+  fde/definition :: FDE 定义 :: score=1 back=2
 
 --- AI对就业影响 (terms: AI, 就业, 分配, 劳动市场) ---
   software-engineering/ai-impact :: AI 对软件工程的影响 :: score=2 back=1
@@ -62,19 +70,21 @@
   fde/ai-landing-difficulties :: AI 落地难点 :: score=1 back=5
 
 --- 个人信息合规 (terms: 个人信息, 合规, 数据) ---
-  compliance/generative-ai-regulation :: 生成式 AI 服务管理 :: score=1 back=1
-  compliance/personal-information :: 个人信息保护与数据合规 :: score=1 back=3
+  compliance/generative-ai-regulation :: 生成式 AI 服务管理 :: score=4 back=1
+  compliance/personal-information :: 个人信息保护与数据合规 :: score=4 back=3
+  product/faq :: 常见问题 :: score=1 back=5
+  product/implementation :: 实施路径 :: score=1 back=9
   fde/ai-landing-difficulties :: AI 落地难点 :: score=1 back=5
   product/edge-cases :: 安全边界与兜底 :: score=1 back=2
   product/wechat-ecosystem :: 微信生态合规获客 :: score=1 back=1
   product/after-sales :: 售后客服 :: score=1 back=9
-  product/lead-gen :: 获客引流客服 :: score=1 back=8
 
 --- 知识库问答 (terms: 知识库, 问答, 文档, 检索) ---
-  product/capabilities :: 系统能力总览 :: score=1 back=6
-  product/kb-maintenance :: 知识库维护与更新 :: score=1 back=1
-  product/knowledge-qa :: 知识库问答 :: score=1 back=5
-  product/retrieval-accuracy :: 检索精度优势：标签倒排 + 知识图谱 :: score=3 back=1
+  product/capabilities :: 系统能力总览 :: score=3 back=6
+  product/kb-maintenance :: 知识库维护与更新 :: score=3 back=1
+  product/knowledge-qa :: 知识库问答 :: score=3 back=5
+  product/retrieval-accuracy :: 检索精度优势：标签倒排 + 知识图谱 :: score=1 back=1
 
 --- 数字花园维护 (terms: Synapse, 数字花园, 内容维护) ---
-  (none)
+  compliance/generative-ai-regulation :: 生成式 AI 服务管理 :: score=1 back=1
+  product/kb-maintenance :: 知识库维护与更新 :: score=1 back=1
