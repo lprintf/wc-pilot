@@ -9,7 +9,9 @@ ARG CUSTOM_PYPI_URL=""
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv
+# uv binary from official image; avoids pip mirror availability issues
+COPY --from=ghcr.io/astral-sh/uv:0.7.11 /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.7.11 /uvx /usr/local/bin/uvx
 
 COPY pyproject.toml uv.lock ./
 RUN case "$MIRROR" in \
