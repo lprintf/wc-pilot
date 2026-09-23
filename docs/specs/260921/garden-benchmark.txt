@@ -1,151 +1,80 @@
 --- 产品介绍 (terms: 产品介绍, 系统能力, 能做什么) ---
-OLD:
-  faq.md :: 这个系统能做什么？ :: 常见问题
-  product.md :: 产品介绍：微信客服智能体 :: 产品介绍：微信客服智能体
-  scenarios.md :: SaaS / 互联网行业 :: 业务场景与落地方案
-  capabilities.md :: 获客引流客服 :: 系统能力与服务
-  capabilities.md :: 售后客服 :: 系统能力与服务
-NEW:
-  product/overview :: 产品介绍：微信客服智能体 :: score=3 back=3
+  product/overview :: 产品介绍：微信客服智能体 :: score=1 back=4
   product/about :: lprintf 团队 :: score=1 back=3
   product/capabilities :: 系统能力总览 :: score=1 back=6
 
 --- 获客引流 (terms: 获客引流, 线索, 微信客服) ---
-OLD:
-  capabilities.md :: 获客引流客服 :: 系统能力与服务
-  product.md :: 产品能做什么 :: 产品介绍：微信客服智能体
-  faq.md :: 这个系统能做什么？ :: 常见问题
-  capabilities.md :: 售后客服 :: 系统能力与服务
-  product.md :: 产品目标 :: 产品介绍：微信客服智能体
-NEW:
-  product/lead-gen :: 获客引流客服 :: score=4 back=6
   product/capabilities :: 系统能力总览 :: score=1 back=6
+  product/lead-gen :: 获客引流客服 :: score=1 back=8
   product/scenarios/education :: 教育培训行业 :: score=1 back=0
-  product/overview :: 产品介绍：微信客服智能体 :: score=1 back=3
+  product/wechat-ecosystem :: 微信生态合规获客 :: score=1 back=1
+  product/overview :: 产品介绍：微信客服智能体 :: score=1 back=4
 
 --- 电商售后 (terms: 电商, 售后, 退换货, 物流) ---
-OLD:
-  capabilities.md :: 售后客服 :: 系统能力与服务
-  product.md :: 如何体验 :: 产品介绍：微信客服智能体
-  scenarios.md :: 电商行业 :: 业务场景与落地方案
-  product.md :: 产品能做什么 :: 产品介绍：微信客服智能体
-  product.md :: 产品目标 :: 产品介绍：微信客服智能体
-NEW:
-  product/scenarios/ecommerce :: 电商行业 :: score=4 back=0
-  product/after-sales :: 售后客服 :: score=3 back=7
-  product/scenarios :: 行业场景总览 :: score=2 back=7
+  product/scenarios/ecommerce :: 电商行业 :: score=1 back=0
+  product/scenarios :: 行业场景总览 :: score=1 back=7
+  product/after-sales :: 售后客服 :: score=1 back=9
   product/capabilities :: 系统能力总览 :: score=1 back=6
   product/scenarios/logistics :: 物流快递行业 :: score=1 back=0
 
 --- 教育行业 (terms: 教育, 培训, 获客) ---
-OLD:
-  capabilities.md :: 获客引流客服 :: 系统能力与服务
-  product.md :: 产品能做什么 :: 产品介绍：微信客服智能体
-  faq.md :: 这个系统能做什么？ :: 常见问题
-  product.md :: 产品目标 :: 产品介绍：微信客服智能体
-  product.md :: 如何体验 :: 产品介绍：微信客服智能体
-NEW:
-  product/scenarios/education :: 教育培训行业 :: score=2 back=0
+  product/scenarios/education :: 教育培训行业 :: score=1 back=0
   product/scenarios :: 行业场景总览 :: score=1 back=7
   product/capabilities :: 系统能力总览 :: score=1 back=6
-  product/lead-gen :: 获客引流客服 :: score=1 back=6
+  product/lead-gen :: 获客引流客服 :: score=1 back=8
+  product/wechat-ecosystem :: 微信生态合规获客 :: score=1 back=1
 
 --- FDE定义 (terms: FDE, 定义, AI落地) ---
-OLD:
-  capabilities.md :: 数据分析与优化 :: 系统能力与服务
-  implementation.md :: 阶段三：生产化 :: 分阶段落地实施
-  pricing.md :: 成本构成 :: 成本估算模型
-  pricing.md :: 量级分档（Demo 估算） :: 成本估算模型
-NEW:
-  fde :: FDE 概述 :: score=3 back=0
-  fde/definition :: FDE 定义 :: score=2 back=2
   fde/capability-model :: FDE 能力模型 :: score=1 back=2
+  fde/definition :: FDE 定义 :: score=1 back=2
   fde/ecosystem :: FDE 生态 :: score=1 back=1
   fde/enterprise-landing :: FDE 企业落地方案 :: score=1 back=4
-
---- AI落地难点 (terms: AI落地, 难点, 流程, 数据) ---
-OLD:
-  scenarios.md :: 物流 / 快递行业 :: 业务场景与落地方案
-  capabilities.md :: 售后客服 :: 系统能力与服务
-  pricing.md :: 成本构成 :: 成本估算模型
-  pricing.md :: 量级分档（Demo 估算） :: 成本估算模型
-  product.md :: 产品能做什么 :: 产品介绍：微信客服智能体
-NEW:
-  fde/ai-landing-difficulties :: AI 落地难点 :: score=4 back=5
+  fde :: FDE 概述 :: score=1 back=0
   ai/employment :: AI、就业与分配 :: score=1 back=0
   software-engineering/ai-impact :: AI 对软件工程的影响 :: score=1 back=1
+  fde/ai-landing-difficulties :: AI 落地难点 :: score=1 back=5
+
+--- AI落地难点 (terms: AI落地, 难点, 流程, 数据) ---
+  ai/employment :: AI、就业与分配 :: score=1 back=0
+  software-engineering/ai-impact :: AI 对软件工程的影响 :: score=1 back=1
+  fde/ai-landing-difficulties :: AI 落地难点 :: score=1 back=5
   fde :: FDE 概述 :: score=1 back=0
-  product/consulting :: 业务咨询与落地评估 :: score=1 back=15
+  product/consulting :: 业务咨询与落地评估 :: score=1 back=16
+  compliance/personal-information :: 个人信息保护与数据合规 :: score=1 back=3
+  product/after-sales :: 售后客服 :: score=1 back=9
+  product/lead-gen :: 获客引流客服 :: score=1 back=8
 
 --- AI落地成本 (terms: 成本, LLM, 开发, 运维) ---
-OLD:
-  pricing.md :: 成本构成 :: 成本估算模型
-  pricing.md :: 量级分档（Demo 估算） :: 成本估算模型
-  capabilities.md :: 获客引流客服 :: 系统能力与服务
-  implementation.md :: 阶段二：小范围试点 :: 分阶段落地实施
-  pricing.md :: 成本估算模型 :: 成本估算模型
-NEW:
-  product/cost :: 成本估算 :: score=2 back=5
-  product/consulting :: 业务咨询与落地评估 :: score=1 back=15
+  product/consulting :: 业务咨询与落地评估 :: score=1 back=16
+  product/cost :: 成本估算 :: score=1 back=5
   software-engineering/human-month :: 人月神话 :: score=1 back=1
   software-engineering/ai-impact :: AI 对软件工程的影响 :: score=1 back=1
 
 --- 人月神话 (terms: 人月神话, 软件工程) ---
-OLD:
-  pricing.md :: 量级分档（Demo 估算） :: 成本估算模型
-  scenarios.md :: 电商行业 :: 业务场景与落地方案
-  capabilities.md :: 获客引流客服 :: 系统能力与服务
-  capabilities.md :: 售后客服 :: 系统能力与服务
-  capabilities.md :: 人工协同 :: 系统能力与服务
-NEW:
-  software-engineering/human-month :: 人月神话 :: score=2 back=1
+  software-engineering/human-month :: 人月神话 :: score=1 back=1
   software-engineering/ai-impact :: AI 对软件工程的影响 :: score=1 back=1
 
 --- AI对就业影响 (terms: AI, 就业, 分配, 劳动市场) ---
-OLD:
-  capabilities.md :: 人工协同 :: 系统能力与服务
-  capabilities.md :: 售后客服 :: 系统能力与服务
-  capabilities.md :: 知识库问答 :: 系统能力与服务
-  faq.md :: 这个系统能做什么？ :: 常见问题
-  product.md :: 一句话定位 :: 产品介绍：微信客服智能体
-NEW:
-  ai/employment :: AI、就业与分配 :: score=4 back=0
   software-engineering/ai-impact :: AI 对软件工程的影响 :: score=2 back=1
   fde :: FDE 概述 :: score=2 back=0
+  ai/employment :: AI、就业与分配 :: score=1 back=0
   compliance/generative-ai-regulation :: 生成式 AI 服务管理 :: score=1 back=1
   fde/ai-landing-difficulties :: AI 落地难点 :: score=1 back=5
 
 --- 个人信息合规 (terms: 个人信息, 合规, 数据) ---
-OLD:
-  implementation.md :: 阶段一：PoC 验证 :: 分阶段落地实施
-  capabilities.md :: 获客引流客服 :: 系统能力与服务
-  product.md :: 产品能做什么 :: 产品介绍：微信客服智能体
-  scenarios.md :: 电商行业 :: 业务场景与落地方案
-  implementation.md :: 阶段二：小范围试点 :: 分阶段落地实施
-NEW:
-  compliance/personal-information :: 个人信息保护与数据合规 :: score=3 back=2
-  compliance/generative-ai-regulation :: 生成式 AI 服务管理 :: score=2 back=1
-  fde/ai-landing-difficulties :: AI 落地难点 :: score=2 back=5
-  product/after-sales :: 售后客服 :: score=1 back=7
-  product/lead-gen :: 获客引流客服 :: score=1 back=6
+  compliance/generative-ai-regulation :: 生成式 AI 服务管理 :: score=1 back=1
+  compliance/personal-information :: 个人信息保护与数据合规 :: score=1 back=3
+  fde/ai-landing-difficulties :: AI 落地难点 :: score=1 back=5
+  product/edge-cases :: 安全边界与兜底 :: score=1 back=2
+  product/wechat-ecosystem :: 微信生态合规获客 :: score=1 back=1
+  product/after-sales :: 售后客服 :: score=1 back=9
+  product/lead-gen :: 获客引流客服 :: score=1 back=8
 
 --- 知识库问答 (terms: 知识库, 问答, 文档, 检索) ---
-OLD:
-  implementation.md :: 阶段一：PoC 验证 :: 分阶段落地实施
-  pricing.md :: 成本构成 :: 成本估算模型
-  capabilities.md :: 售后客服 :: 系统能力与服务
-  faq.md :: AI 客服会编造答案吗？ :: 常见问题
-  pricing.md :: 优化建议 :: 成本估算模型
-NEW:
-  product/knowledge-qa :: 知识库问答 :: score=4 back=3
-  product/capabilities :: 系统能力总览 :: score=2 back=6
+  product/capabilities :: 系统能力总览 :: score=1 back=6
+  product/kb-maintenance :: 知识库维护与更新 :: score=1 back=1
+  product/knowledge-qa :: 知识库问答 :: score=1 back=5
+  product/retrieval-accuracy :: 检索精度优势：标签倒排 + 知识图谱 :: score=3 back=1
 
 --- 数字花园维护 (terms: Synapse, 数字花园, 内容维护) ---
-OLD:
-  pricing.md :: 成本构成 :: 成本估算模型
-  pricing.md :: 量级分档（Demo 估算） :: 成本估算模型
-  capabilities.md :: 售后客服 :: 系统能力与服务
-  capabilities.md :: 获客引流客服 :: 系统能力与服务
-  faq.md :: 数据安全吗？ :: 常见问题
-NEW:
   (none)

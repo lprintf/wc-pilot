@@ -141,7 +141,6 @@ class Runtime:
         if hasattr(self.llm, "aclose"):
             await self.llm.aclose()
         await self.wecom.aclose()
-        self.knowledge_index.close()
         await self._checkpoint_connection.close()
         self.store.close()
 

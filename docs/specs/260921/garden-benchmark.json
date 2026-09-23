@@ -6,83 +6,22 @@
       "系统能力",
       "能做什么"
     ],
-    "old": [
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "这个系统能做什么？",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "产品介绍：微信客服智能体",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "scenarios.md",
-        "title": "业务场景与落地方案",
-        "heading": "SaaS / 互联网行业",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "获客引流客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "售后客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "lprintf 团队是谁？",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "产品目标",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "系统能力与服务",
-        "score": 0,
-        "backlinks": 0
-      }
-    ],
-    "new": [
+    "hits": [
       {
         "slug": "product/overview",
         "title": "产品介绍：微信客服智能体",
-        "heading": "",
-        "score": 3,
-        "backlinks": 3
+        "score": 1,
+        "backlinks": 4
       },
       {
         "slug": "product/about",
         "title": "lprintf 团队",
-        "heading": "",
         "score": 1,
         "backlinks": 3
       },
       {
         "slug": "product/capabilities",
         "title": "系统能力总览",
-        "heading": "",
         "score": 1,
         "backlinks": 6
       }
@@ -95,92 +34,36 @@
       "线索",
       "微信客服"
     ],
-    "old": [
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "获客引流客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "产品能做什么",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "这个系统能做什么？",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "售后客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "产品目标",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "scenarios.md",
-        "title": "业务场景与落地方案",
-        "heading": "教育培训行业",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "知识库问答",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "pricing.md",
-        "title": "成本估算模型",
-        "heading": "成本构成",
-        "score": 0,
-        "backlinks": 0
-      }
-    ],
-    "new": [
-      {
-        "slug": "product/lead-gen",
-        "title": "获客引流客服",
-        "heading": "",
-        "score": 4,
-        "backlinks": 6
-      },
+    "hits": [
       {
         "slug": "product/capabilities",
         "title": "系统能力总览",
-        "heading": "",
         "score": 1,
         "backlinks": 6
+      },
+      {
+        "slug": "product/lead-gen",
+        "title": "获客引流客服",
+        "score": 1,
+        "backlinks": 8
       },
       {
         "slug": "product/scenarios/education",
         "title": "教育培训行业",
-        "heading": "",
         "score": 1,
         "backlinks": 0
       },
       {
+        "slug": "product/wechat-ecosystem",
+        "title": "微信生态合规获客",
+        "score": 1,
+        "backlinks": 1
+      },
+      {
         "slug": "product/overview",
         "title": "产品介绍：微信客服智能体",
-        "heading": "",
         "score": 1,
-        "backlinks": 3
+        "backlinks": 4
       }
     ]
   },
@@ -192,97 +75,34 @@
       "退换货",
       "物流"
     ],
-    "old": [
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "售后客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "如何体验",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "scenarios.md",
-        "title": "业务场景与落地方案",
-        "heading": "电商行业",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "产品能做什么",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "产品目标",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "这个系统能做什么？",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "获客引流客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "人工协同",
-        "score": 0,
-        "backlinks": 0
-      }
-    ],
-    "new": [
+    "hits": [
       {
         "slug": "product/scenarios/ecommerce",
         "title": "电商行业",
-        "heading": "",
-        "score": 4,
+        "score": 1,
         "backlinks": 0
-      },
-      {
-        "slug": "product/after-sales",
-        "title": "售后客服",
-        "heading": "",
-        "score": 3,
-        "backlinks": 7
       },
       {
         "slug": "product/scenarios",
         "title": "行业场景总览",
-        "heading": "",
-        "score": 2,
+        "score": 1,
         "backlinks": 7
+      },
+      {
+        "slug": "product/after-sales",
+        "title": "售后客服",
+        "score": 1,
+        "backlinks": 9
       },
       {
         "slug": "product/capabilities",
         "title": "系统能力总览",
-        "heading": "",
         "score": 1,
         "backlinks": 6
       },
       {
         "slug": "product/scenarios/logistics",
         "title": "物流快递行业",
-        "heading": "",
         "score": 1,
         "backlinks": 0
       }
@@ -295,71 +115,36 @@
       "培训",
       "获客"
     ],
-    "old": [
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "获客引流客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "产品能做什么",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "这个系统能做什么？",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "产品目标",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "如何体验",
-        "score": 0,
-        "backlinks": 0
-      }
-    ],
-    "new": [
+    "hits": [
       {
         "slug": "product/scenarios/education",
         "title": "教育培训行业",
-        "heading": "",
-        "score": 2,
+        "score": 1,
         "backlinks": 0
       },
       {
         "slug": "product/scenarios",
         "title": "行业场景总览",
-        "heading": "",
         "score": 1,
         "backlinks": 7
       },
       {
         "slug": "product/capabilities",
         "title": "系统能力总览",
-        "heading": "",
         "score": 1,
         "backlinks": 6
       },
       {
         "slug": "product/lead-gen",
         "title": "获客引流客服",
-        "heading": "",
         "score": 1,
-        "backlinks": 6
+        "backlinks": 8
+      },
+      {
+        "slug": "product/wechat-ecosystem",
+        "title": "微信生态合规获客",
+        "score": 1,
+        "backlinks": 1
       }
     ]
   },
@@ -370,71 +155,54 @@
       "定义",
       "AI落地"
     ],
-    "old": [
+    "hits": [
       {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "数据分析与优化",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "implementation.md",
-        "title": "分阶段落地实施",
-        "heading": "阶段三：生产化",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "pricing.md",
-        "title": "成本估算模型",
-        "heading": "成本构成",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "pricing.md",
-        "title": "成本估算模型",
-        "heading": "量级分档（Demo 估算）",
-        "score": 0,
-        "backlinks": 0
-      }
-    ],
-    "new": [
-      {
-        "slug": "fde",
-        "title": "FDE 概述",
-        "heading": "",
-        "score": 3,
-        "backlinks": 0
+        "slug": "fde/capability-model",
+        "title": "FDE 能力模型",
+        "score": 1,
+        "backlinks": 2
       },
       {
         "slug": "fde/definition",
         "title": "FDE 定义",
-        "heading": "",
-        "score": 2,
-        "backlinks": 2
-      },
-      {
-        "slug": "fde/capability-model",
-        "title": "FDE 能力模型",
-        "heading": "",
         "score": 1,
         "backlinks": 2
       },
       {
         "slug": "fde/ecosystem",
         "title": "FDE 生态",
-        "heading": "",
         "score": 1,
         "backlinks": 1
       },
       {
         "slug": "fde/enterprise-landing",
         "title": "FDE 企业落地方案",
-        "heading": "",
         "score": 1,
         "backlinks": 4
+      },
+      {
+        "slug": "fde",
+        "title": "FDE 概述",
+        "score": 1,
+        "backlinks": 0
+      },
+      {
+        "slug": "ai/employment",
+        "title": "AI、就业与分配",
+        "score": 1,
+        "backlinks": 0
+      },
+      {
+        "slug": "software-engineering/ai-impact",
+        "title": "AI 对软件工程的影响",
+        "score": 1,
+        "backlinks": 1
+      },
+      {
+        "slug": "fde/ai-landing-difficulties",
+        "title": "AI 落地难点",
+        "score": 1,
+        "backlinks": 5
       }
     ]
   },
@@ -446,99 +214,54 @@
       "流程",
       "数据"
     ],
-    "old": [
-      {
-        "slug": "scenarios.md",
-        "title": "业务场景与落地方案",
-        "heading": "物流 / 快递行业",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "售后客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "pricing.md",
-        "title": "成本估算模型",
-        "heading": "成本构成",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "pricing.md",
-        "title": "成本估算模型",
-        "heading": "量级分档（Demo 估算）",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "产品能做什么",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "获客引流客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "lprintf 团队是谁？",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "lprintf 团队",
-        "score": 0,
-        "backlinks": 0
-      }
-    ],
-    "new": [
-      {
-        "slug": "fde/ai-landing-difficulties",
-        "title": "AI 落地难点",
-        "heading": "",
-        "score": 4,
-        "backlinks": 5
-      },
+    "hits": [
       {
         "slug": "ai/employment",
         "title": "AI、就业与分配",
-        "heading": "",
         "score": 1,
         "backlinks": 0
       },
       {
         "slug": "software-engineering/ai-impact",
         "title": "AI 对软件工程的影响",
-        "heading": "",
         "score": 1,
         "backlinks": 1
       },
       {
+        "slug": "fde/ai-landing-difficulties",
+        "title": "AI 落地难点",
+        "score": 1,
+        "backlinks": 5
+      },
+      {
         "slug": "fde",
         "title": "FDE 概述",
-        "heading": "",
         "score": 1,
         "backlinks": 0
       },
       {
         "slug": "product/consulting",
         "title": "业务咨询与落地评估",
-        "heading": "",
         "score": 1,
-        "backlinks": 15
+        "backlinks": 16
+      },
+      {
+        "slug": "compliance/personal-information",
+        "title": "个人信息保护与数据合规",
+        "score": 1,
+        "backlinks": 3
+      },
+      {
+        "slug": "product/after-sales",
+        "title": "售后客服",
+        "score": 1,
+        "backlinks": 9
+      },
+      {
+        "slug": "product/lead-gen",
+        "title": "获客引流客服",
+        "score": 1,
+        "backlinks": 8
       }
     ]
   },
@@ -550,90 +273,28 @@
       "开发",
       "运维"
     ],
-    "old": [
-      {
-        "slug": "pricing.md",
-        "title": "成本估算模型",
-        "heading": "成本构成",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "pricing.md",
-        "title": "成本估算模型",
-        "heading": "量级分档（Demo 估算）",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "获客引流客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "implementation.md",
-        "title": "分阶段落地实施",
-        "heading": "阶段二：小范围试点",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "pricing.md",
-        "title": "成本估算模型",
-        "heading": "成本估算模型",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "implementation.md",
-        "title": "分阶段落地实施",
-        "heading": "阶段一：PoC 验证",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "售后客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "怎么进入个人中心？",
-        "score": 0,
-        "backlinks": 0
-      }
-    ],
-    "new": [
-      {
-        "slug": "product/cost",
-        "title": "成本估算",
-        "heading": "",
-        "score": 2,
-        "backlinks": 5
-      },
+    "hits": [
       {
         "slug": "product/consulting",
         "title": "业务咨询与落地评估",
-        "heading": "",
         "score": 1,
-        "backlinks": 15
+        "backlinks": 16
+      },
+      {
+        "slug": "product/cost",
+        "title": "成本估算",
+        "score": 1,
+        "backlinks": 5
       },
       {
         "slug": "software-engineering/human-month",
         "title": "人月神话",
-        "heading": "",
         "score": 1,
         "backlinks": 1
       },
       {
         "slug": "software-engineering/ai-impact",
         "title": "AI 对软件工程的影响",
-        "heading": "",
         "score": 1,
         "backlinks": 1
       }
@@ -645,69 +306,16 @@
       "人月神话",
       "软件工程"
     ],
-    "old": [
-      {
-        "slug": "pricing.md",
-        "title": "成本估算模型",
-        "heading": "量级分档（Demo 估算）",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "scenarios.md",
-        "title": "业务场景与落地方案",
-        "heading": "电商行业",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "获客引流客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "售后客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "人工协同",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "implementation.md",
-        "title": "分阶段落地实施",
-        "heading": "阶段一：PoC 验证",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "implementation.md",
-        "title": "分阶段落地实施",
-        "heading": "阶段二：小范围试点",
-        "score": 0,
-        "backlinks": 0
-      }
-    ],
-    "new": [
+    "hits": [
       {
         "slug": "software-engineering/human-month",
         "title": "人月神话",
-        "heading": "",
-        "score": 2,
+        "score": 1,
         "backlinks": 1
       },
       {
         "slug": "software-engineering/ai-impact",
         "title": "AI 对软件工程的影响",
-        "heading": "",
         "score": 1,
         "backlinks": 1
       }
@@ -721,97 +329,34 @@
       "分配",
       "劳动市场"
     ],
-    "old": [
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "人工协同",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "售后客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "知识库问答",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "这个系统能做什么？",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "一句话定位",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "产品能做什么",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "获客引流客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "lprintf 团队是谁？",
-        "score": 0,
-        "backlinks": 0
-      }
-    ],
-    "new": [
-      {
-        "slug": "ai/employment",
-        "title": "AI、就业与分配",
-        "heading": "",
-        "score": 4,
-        "backlinks": 0
-      },
+    "hits": [
       {
         "slug": "software-engineering/ai-impact",
         "title": "AI 对软件工程的影响",
-        "heading": "",
         "score": 2,
         "backlinks": 1
       },
       {
         "slug": "fde",
         "title": "FDE 概述",
-        "heading": "",
         "score": 2,
+        "backlinks": 0
+      },
+      {
+        "slug": "ai/employment",
+        "title": "AI、就业与分配",
+        "score": 1,
         "backlinks": 0
       },
       {
         "slug": "compliance/generative-ai-regulation",
         "title": "生成式 AI 服务管理",
-        "heading": "",
         "score": 1,
         "backlinks": 1
       },
       {
         "slug": "fde/ai-landing-difficulties",
         "title": "AI 落地难点",
-        "heading": "",
         "score": 1,
         "backlinks": 5
       }
@@ -824,99 +369,48 @@
       "合规",
       "数据"
     ],
-    "old": [
-      {
-        "slug": "implementation.md",
-        "title": "分阶段落地实施",
-        "heading": "阶段一：PoC 验证",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "获客引流客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "产品能做什么",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "scenarios.md",
-        "title": "业务场景与落地方案",
-        "heading": "电商行业",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "implementation.md",
-        "title": "分阶段落地实施",
-        "heading": "阶段二：小范围试点",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "数据安全吗？",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "售后客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "implementation.md",
-        "title": "分阶段落地实施",
-        "heading": "阶段三：生产化",
-        "score": 0,
-        "backlinks": 0
-      }
-    ],
-    "new": [
-      {
-        "slug": "compliance/personal-information",
-        "title": "个人信息保护与数据合规",
-        "heading": "",
-        "score": 3,
-        "backlinks": 2
-      },
+    "hits": [
       {
         "slug": "compliance/generative-ai-regulation",
         "title": "生成式 AI 服务管理",
-        "heading": "",
-        "score": 2,
+        "score": 1,
         "backlinks": 1
+      },
+      {
+        "slug": "compliance/personal-information",
+        "title": "个人信息保护与数据合规",
+        "score": 1,
+        "backlinks": 3
       },
       {
         "slug": "fde/ai-landing-difficulties",
         "title": "AI 落地难点",
-        "heading": "",
-        "score": 2,
+        "score": 1,
         "backlinks": 5
+      },
+      {
+        "slug": "product/edge-cases",
+        "title": "安全边界与兜底",
+        "score": 1,
+        "backlinks": 2
+      },
+      {
+        "slug": "product/wechat-ecosystem",
+        "title": "微信生态合规获客",
+        "score": 1,
+        "backlinks": 1
       },
       {
         "slug": "product/after-sales",
         "title": "售后客服",
-        "heading": "",
         "score": 1,
-        "backlinks": 7
+        "backlinks": 9
       },
       {
         "slug": "product/lead-gen",
         "title": "获客引流客服",
-        "heading": "",
         "score": 1,
-        "backlinks": 6
+        "backlinks": 8
       }
     ]
   },
@@ -928,78 +422,30 @@
       "文档",
       "检索"
     ],
-    "old": [
-      {
-        "slug": "implementation.md",
-        "title": "分阶段落地实施",
-        "heading": "阶段一：PoC 验证",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "pricing.md",
-        "title": "成本估算模型",
-        "heading": "成本构成",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "售后客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "AI 客服会编造答案吗？",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "pricing.md",
-        "title": "成本估算模型",
-        "heading": "优化建议",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "产品能做什么",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "scenarios.md",
-        "title": "业务场景与落地方案",
-        "heading": "电商行业",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "知识库问答",
-        "score": 0,
-        "backlinks": 0
-      }
-    ],
-    "new": [
-      {
-        "slug": "product/knowledge-qa",
-        "title": "知识库问答",
-        "heading": "",
-        "score": 4,
-        "backlinks": 3
-      },
+    "hits": [
       {
         "slug": "product/capabilities",
         "title": "系统能力总览",
-        "heading": "",
-        "score": 2,
+        "score": 1,
         "backlinks": 6
+      },
+      {
+        "slug": "product/kb-maintenance",
+        "title": "知识库维护与更新",
+        "score": 1,
+        "backlinks": 1
+      },
+      {
+        "slug": "product/knowledge-qa",
+        "title": "知识库问答",
+        "score": 1,
+        "backlinks": 5
+      },
+      {
+        "slug": "product/retrieval-accuracy",
+        "title": "检索精度优势：标签倒排 + 知识图谱",
+        "score": 3,
+        "backlinks": 1
       }
     ]
   },
@@ -1010,64 +456,6 @@
       "数字花园",
       "内容维护"
     ],
-    "old": [
-      {
-        "slug": "pricing.md",
-        "title": "成本估算模型",
-        "heading": "成本构成",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "pricing.md",
-        "title": "成本估算模型",
-        "heading": "量级分档（Demo 估算）",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "售后客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "capabilities.md",
-        "title": "系统能力与服务",
-        "heading": "获客引流客服",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "数据安全吗？",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "这个系统能做什么？",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "faq.md",
-        "title": "常见问题",
-        "heading": "AI 客服会编造答案吗？",
-        "score": 0,
-        "backlinks": 0
-      },
-      {
-        "slug": "product.md",
-        "title": "产品介绍：微信客服智能体",
-        "heading": "产品能做什么",
-        "score": 0,
-        "backlinks": 0
-      }
-    ],
-    "new": []
+    "hits": []
   }
 ]

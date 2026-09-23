@@ -40,8 +40,11 @@ class GardenKnowledgeSource:
     """In-memory tag-inverted-index + knowledge-graph for a Markdown digital garden."""
 
     def __init__(self, garden_root: Path | None = None) -> None:
-        root = Path(__file__).resolve().parents[2] if garden_root is None else Path(garden_root)
-        self._root = root / "backend" / "garden" / "raw" / "zh"
+        if garden_root is None:
+            root = Path(__file__).resolve().parents[2]
+            self._root = root / "backend" / "garden" / "raw" / "zh"
+        else:
+            self._root = Path(garden_root)
         self._nodes: dict[str, _Node] = {}
         self._basename_to_slug: dict[str, str] = {}
         self._inverted_index: dict[str, list[str]] = {}
