@@ -4,6 +4,10 @@ services:
   frontend-builder:
     build:
       context: ./frontend
+      args:
+        MIRROR: ${MIRROR:-official}
+        CHINA_NPM_URL: ${CHINA_NPM_URL:-}
+        CUSTOM_NPM_URL: ${CUSTOM_NPM_URL:-}
     volumes:
       - frontend_dist:/out
     restart: "no"
@@ -11,6 +15,10 @@ services:
   backend:
     build:
       context: ./backend
+      args:
+        MIRROR: ${MIRROR:-official}
+        CHINA_PYPI_URL: ${CHINA_PYPI_URL:-}
+        CUSTOM_PYPI_URL: ${CUSTOM_PYPI_URL:-}
     env_file:
       - .env
     volumes:
